@@ -8,7 +8,7 @@ ApplicationWindow {
     width: 1400
     height: 900
     visible: true
-    title: "Picazoo"
+    title: app ? "Picazoo " + app.version : "Picazoo"
     color: "#1e1e1e"
 
     readonly property bool ready: startupError === "" && app !== null

@@ -1,0 +1,170 @@
+# Compilation, tests et publication de Picazoo (Windows x64).
+#
+# - Chaque push et pull request : compilation Release + tests (ctest).
+# - Push sur main : préversion « dev » (zip portable + installateur), remplacée à chaque push.
+# - Tag vX.Y.Z : version stable « Picazoo X.Y.Z » (zip portable + installateur).
+#
+# Première exécution : ~45 min (compilation des dépendances vcpkg) ; ensuite, caches.
+
+name: Compilation et publication
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: write # publication des versions
+
+env:
+  QT_VERSION: "6.12.1"
+  QT_ARCH: win64_msvc2022_64
+  QT_MODULES: qtmultimedia qtimageformats qtshadertools
+  VCPKG_BINARY_SOURCES: clear;files,${{ github.workspace }}\vcpkg-cache,readwrite
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Version
+        id: version
+        shell: pwsh
+        run: |
+          $sha = "${{ github.sha }}".Substring(0, 7)
+          if ("${{ github.ref_type }}" -eq "tag" -and "${{ github.ref_name }}" -match '^v(\d+\.\d+\.\d+.*)$') {
+            $version = $Matches[1]; $label = $version; $channel = "stable"
+          } else {
+            $version = "dev-$sha"; $label = "dev-$sha"; $channel = "dev"
+          }
+          "version=$version" >> $env:GITHUB_OUTPUT
+          "label=$label" >> $env:GITHUB_OUTPUT
+          "channel=$channel" >> $env:GITHUB_OUTPUT
+          "baseline=$((Get-Content vcpkg.json -Raw | ConvertFrom-Json).'builtin-baseline')" >> $env:GITHUB_OUTPUT
+          Write-Host "Version : $version ($channel)"
+
+      # ---------------------------------------------------------------- Qt
+      - name: Cache Qt
+        id: cache-qt
+        uses: actions/cache@v5
+        with:
+          path: C:\Qt\${{ env.QT_VERSION }}
+          key: qt-${{ env.QT_VERSION }}-${{ env.QT_ARCH }}-${{ env.QT_MODULES }}-v1
+
+      - name: Installer Qt
+        if: steps.cache-qt.outputs.cache-hit != 'true'
+        shell: pwsh
+        run: |
+          python scripts/ci/install_qt.py --version $env:QT_VERSION --arch $env:QT_ARCH --modules $($env:QT_MODULES -split ' ') --out C:\Qt
+          # Les symboles de débogage de Qt ne servent pas ici et alourdiraient le cache.
+          Get-ChildItem C:\Qt\$env:QT_VERSION -Recurse -Filter *.pdb | Remove-Item -Force
+
+      - name: QT_DIR
+        shell: pwsh
+        run: |
+          $kit = $env:QT_ARCH -replace '^win64_', ''
+          "QT_DIR=C:\Qt\$env:QT_VERSION\$kit" >> $env:GITHUB_ENV
+
+      # ------------------------------------------------------------- vcpkg
+      - name: Cache vcpkg
+        uses: actions/cache@v5
+        with:
+          path: ${{ github.workspace }}\vcpkg-cache
+          key: vcpkg-${{ hashFiles('vcpkg.json') }}-v1
+          restore-keys: vcpkg-
+
+      - name: Installer vcpkg (commit du builtin-baseline)
+        shell: pwsh
+        run: |
+          git clone --filter=blob:none https://github.com/microsoft/vcpkg.git "$env:RUNNER_TEMP\vcpkg"
+          git -C "$env:RUNNER_TEMP\vcpkg" checkout ${{ steps.version.outputs.baseline }}
+          & "$env:RUNNER_TEMP\vcpkg\bootstrap-vcpkg.bat" -disableMetrics
+          New-Item -ItemType Directory -Force "${{ github.workspace }}\vcpkg-cache" | Out-Null
+          "VCPKG_ROOT=$env:RUNNER_TEMP\vcpkg" >> $env:GITHUB_ENV
+
+      # -------------------------------------------------------------- MSVC
+      - name: Environnement MSVC x64
+        shell: pwsh
+        run: |
+          $vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * `
+                -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+          $vcvars = Join-Path $vs "VC\Auxiliary\Build\vcvars64.bat"
+          cmd /c "`"$vcvars`" >nul && set" | ForEach-Object {
+            if ($_ -match '^([^=]+)=(.*)$') { "$($Matches[1])=$($Matches[2])" >> $env:GITHUB_ENV }
+          }
+
+      # ------------------------------------------- Compilation et tests
+      - name: Configurer
+        run: cmake --preset windows-release -DPICAZOO_VERSION=${{ steps.version.outputs.version }}
+
+      - name: Compiler
+        run: cmake --build --preset windows-release
+
+      - name: Tests
+        run: ctest --preset windows-release --timeout 600
+
+      # ----------------------------------------------------------- Paquets
+      - name: Dossier autonome et zip
+        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+        shell: pwsh
+        run: |
+          cmake --install build/windows-release --prefix dist/picazoo
+          $zip = "dist/Picazoo-${{ steps.version.outputs.label }}-win64.zip"
+          Compress-Archive -Path dist/picazoo -DestinationPath $zip -CompressionLevel Optimal
+          "ZIP=$zip" >> $env:GITHUB_ENV
+
+      - name: Installateur (Inno Setup)
+        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+        shell: pwsh
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) { choco install innosetup -y --no-progress | Out-Null }
+          $version = "${{ steps.version.outputs.version }}"
+          $base = "Picazoo-${{ steps.version.outputs.label }}-win64-setup"
+          & $iscc installer\picazoo.iss "/DAppVersion=$version" "/DOutputBase=$base"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          "SETUP=dist/$base.exe" >> $env:GITHUB_ENV
+
+      - name: Artefacts
+        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v6
+        with:
+          name: Picazoo-${{ steps.version.outputs.label }}-win64
+          path: |
+            ${{ env.ZIP }}
+            ${{ env.SETUP }}
+
+      # ------------------------------------------------------- Publication
+      - name: Préversion « dev »
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $notes = @"
+          Dernière version de développement, construite automatiquement à partir de main
+          (commit ${{ github.sha }}). Elle est remplacée à chaque modification : elle peut
+          contenir des défauts. Les exécutables ne sont pas signés : Windows SmartScreen
+          peut afficher un avertissement (« Informations complémentaires » puis « Exécuter quand même »).
+          "@
+          gh release delete dev --yes --cleanup-tag 2>$null
+          git push origin :refs/tags/dev 2>$null
+          gh release create dev $env:ZIP $env:SETUP --prerelease --target ${{ github.sha }} `
+            --title "Picazoo – dernière version de développement (${{ steps.version.outputs.label }})" --notes $notes
+
+      - name: Version stable
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create ${{ github.ref_name }} $env:ZIP $env:SETUP `
+            --title "Picazoo ${{ steps.version.outputs.version }}" --generate-notes

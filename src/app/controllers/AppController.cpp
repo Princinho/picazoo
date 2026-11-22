@@ -1,6 +1,7 @@
 #include "controllers/AppController.h"
 
 #include "library/Library.h"
+#include "library/Version.h"
 #include "media/Formats.h"
 #include "platform/win/Paths.h"
 #include "platform/win/ShellActions.h"
@@ -74,6 +75,8 @@ void AppController::setItemSort(const QString& s)
     lib_.setSetting(QStringLiteral("item_sort"), s);
     emit sortChanged();
 }
+
+QString AppController::version() const { return QString::fromLatin1(picazoo::version()); }
 
 qint64 AppController::lastFolderId() const { return lib_.setting(QStringLiteral("last_folder_id")).toLongLong(); }
 

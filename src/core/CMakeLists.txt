@@ -12,6 +12,12 @@ qt_add_resources(picazoo_core "picazoo_core_sql"
 
 target_include_directories(picazoo_core PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
 
+# Version affichée par l'application ; la CI la fixe d'après le tag (ex. 0.2.0) ou le
+# commit (ex. dev-1a2b3c4) : cmake --preset windows-release -DPICAZOO_VERSION=0.2.0
+set(PICAZOO_VERSION "${PROJECT_VERSION}-dev" CACHE STRING "Version affichée de Picazoo")
+set_source_files_properties("${CMAKE_CURRENT_SOURCE_DIR}/library/Version.cpp"
+    PROPERTIES COMPILE_DEFINITIONS "PICAZOO_VERSION_STRING=\"${PICAZOO_VERSION}\"")
+
 if(TARGET libheif::heif)
     set(PICAZOO_HEIF_TARGET libheif::heif)
 else()

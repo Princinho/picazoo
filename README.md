@@ -13,6 +13,29 @@ moment (elles se reconstruisent).
 Feuille de route : [docs/feuille-de-route.md](docs/feuille-de-route.md).
 Spécifications : [specs/](specs/).
 
+## Télécharger
+
+Page des versions : <https://github.com/Princinho/picazoo/releases>
+
+- **Version stable** (`Picazoo X.Y.Z`) : publiée à chaque étape validée.
+- **Dernière version de développement** (préversion `dev`) : reconstruite
+  automatiquement à chaque modification de `main`. Plus récente, mais elle peut
+  contenir des défauts.
+
+Chaque version existe en deux formats, pour Windows 10 et 11 (64 bits) :
+
+- `Picazoo-…-win64-setup.exe` : installateur (menu Démarrer, désinstallation
+  depuis les paramètres de Windows) ;
+- `Picazoo-…-win64.zip` : version portable ; décompresser puis lancer
+  `picazoo\bin\picazoo.exe`. Si Windows signale une DLL `MSVCP140` ou
+  `VCRUNTIME140` manquante, installer les
+  [bibliothèques Visual C++](https://aka.ms/vs/17/release/vc_redist.x64.exe)
+  (l'installateur s'en charge quand il est lancé pour tous les utilisateurs).
+
+Les exécutables ne sont pas signés : Windows SmartScreen peut afficher
+« Windows a protégé votre ordinateur ». Cliquer sur « Informations
+complémentaires » puis « Exécuter quand même ».
+
 ## Fonctionnalité 001 — bibliothèque et visionneuse
 
 - Dossiers surveillés (Images, Bureau, Documents par défaut), exclusions.
@@ -82,3 +105,31 @@ Les tests qui ont besoin de vrais fichiers RAW, HEIC ou vidéo les cherchent dan
 Qt (LGPLv3, liaison dynamique), libheif et libde265 (LGPLv3), LibRaw (LGPL 2.1 /
 CDDL), libjpeg-turbo (BSD/IJG), SQLite (domaine public), TinyEXIF (BSD-2),
 xxHash (BSD-2). L'encodeur x265 (GPL) de libheif est volontairement désactivé.
+
+## Intégration continue et publication
+
+Le workflow [.github/workflows/build.yml](.github/workflows/build.yml) tourne sur
+GitHub Actions (Windows) : il installe Qt 6.12 depuis download.qt.io
+([scripts/ci/install_qt.py](scripts/ci/install_qt.py)), compile les dépendances
+vcpkg au commit du `builtin-baseline` de `vcpkg.json` (mises en cache), compile en
+Release, lance tous les tests, puis fabrique le zip portable et l'installateur
+([installer/picazoo.iss](installer/picazoo.iss), Inno Setup).
+
+- **Pull request** : compilation et tests seulement.
+- **Push sur `main`** : la préversion `dev` est remplacée par la nouvelle version.
+- **Tag `vX.Y.Z`** : une version stable est publiée.
+
+Publier une version stable :
+
+```powershell
+git tag v0.2.0
+```
+
+```powershell
+git push origin v0.2.0
+```
+
+La version affichée par l'application (titre de la fenêtre) vient de l'option
+CMake `PICAZOO_VERSION`, fixée par la CI d'après le tag ou le commit.
+Aucun secret n'est nécessaire : la publication utilise le jeton fourni par GitHub
+Actions.

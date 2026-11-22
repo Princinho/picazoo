@@ -21,6 +21,7 @@ class AppController : public QObject {
     Q_PROPERTY(QString folderSort READ folderSort WRITE setFolderSort NOTIFY sortChanged)
     Q_PROPERTY(QString itemSort READ itemSort WRITE setItemSort NOTIFY sortChanged)
     Q_PROPERTY(qint64 lastFolderId READ lastFolderId WRITE setLastFolderId NOTIFY lastFolderChanged)
+    Q_PROPERTY(QString version READ version CONSTANT)
 
 public:
     explicit AppController(picazoo::Library& library, QObject* parent = nullptr);
@@ -34,6 +35,7 @@ public:
     QString itemSort() const;
     void setItemSort(const QString& s);
     qint64 lastFolderId() const;
+    QString version() const;
     void setLastFolderId(qint64 id);
 
     Q_INVOKABLE void addRoot(const QUrl& folder);
