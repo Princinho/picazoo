@@ -60,6 +60,7 @@ public:
     QList<ItemId> items(FolderId folder, ItemSort sort) const;
     std::optional<Item> item(ItemId id) const;
     qint64 itemCount() const;
+    QHash<RootId, qint64> rootItemCounts() const;
 
     // --- Vignettes (R6)
     void prioritize(const QList<ItemId>& visible, const QList<ItemId>& nearby);

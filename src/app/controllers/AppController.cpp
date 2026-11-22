@@ -24,8 +24,10 @@ AppController::AppController(Library& library, QObject* parent) : QObject(parent
 QVariantList AppController::roots() const
 {
     QVariantList out;
+    const auto counts = lib_.rootItemCounts();
     for (const auto& r : lib_.roots()) {
         QVariantMap m;
+        m.insert(QStringLiteral("count"), counts.value(r.id, 0));
         m.insert(QStringLiteral("id"), r.id);
         m.insert(QStringLiteral("path"), r.path);
         QString state;
@@ -54,10 +56,18 @@ QString AppController::scanText() const
         return QStringLiteral("Recherche des photos… %1 dossiers").arg(fr.toString(p.done));
     case ScanProgress::Phase::Indexing: return QStringLiteral("Analyse en cours…");
     case ScanProgress::Phase::Thumbnails:
-        return QStringLiteral("Analyse : %1 / %2").arg(fr.toString(p.done), fr.toString(p.total));
+        return QStringLiteral("Analyse : %1 / %2 éléments").arg(fr.toString(p.done), fr.toString(p.total));
     case ScanProgress::Phase::Idle: return {};
     }
     return {};
+}
+
+double AppController::scanProgress() const
+{
+    const ScanProgress p = lib_.progress();
+    if (p.phase != ScanProgress::Phase::Thumbnails || p.total <= 0)
+        return -1.0;
+    return double(p.done) / double(p.total);
 }
 
 QString AppController::folderSort() const { return lib_.setting(QStringLiteral("folder_sort")).toString(); }

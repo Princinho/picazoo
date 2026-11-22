@@ -6,44 +6,61 @@ import QtQuick.Layouts
 Rectangle {
     id: root
     property var info: ({})
-    color: "#1a1a1a"
+    color: Theme.viewerPanel
+
+    Rectangle { anchors.left: parent.left; width: 1; height: parent.height; color: Theme.viewerLine }
 
     component Field: ColumnLayout {
         property string label
         property string value
         visible: value !== undefined && value !== ""
         Layout.fillWidth: true
-        spacing: 2
+        spacing: 3
         Label {
             text: parent.label
-            color: "#8a8a8a"
-            font.pixelSize: 11
+            color: Theme.text3
+            font.pixelSize: 12
         }
         Label {
             Layout.fillWidth: true
             text: parent.value
             wrapMode: Text.WrapAnywhere
-            color: "#e0e0e0"
+            color: Theme.text
         }
     }
 
     ColumnLayout {
         anchors.fill: parent
-        anchors.margins: 16
-        spacing: 14
+        anchors.margins: 24
+        spacing: 16
 
         Label {
             text: "Informations"
-            font.pixelSize: 16
-            font.bold: true
+            font.family: Theme.displayFont
+            font.pixelSize: 18
+            font.weight: Font.DemiBold
+            color: Theme.text
         }
-        Field { label: "Nom"; value: root.info.name || "" }
-        Field { label: "Emplacement"; value: root.info.path || "" }
         Field { label: root.info.dateLabel || "Date"; value: root.info.date || "" }
         Field { label: "Dimensions"; value: root.info.dimensions || "" }
         Field { label: "Durée"; value: root.info.duration || "" }
         Field { label: "Poids"; value: root.info.size || "" }
         Field { label: "Appareil"; value: root.info.camera || "" }
+        Field { label: "Emplacement"; value: root.info.path || "" }
+        Button {
+            id: revealBtn
+            focusPolicy: Qt.NoFocus
+            implicitHeight: 40
+            leftPadding: 14
+            rightPadding: 14
+            onClicked: app.revealInExplorer(root.info.id)
+            contentItem: Label { text: "Afficher dans l'Explorateur"; color: Theme.text; verticalAlignment: Text.AlignVCenter }
+            background: Rectangle {
+                radius: 10
+                color: revealBtn.hovered ? Theme.hover : "#1A1D23"
+                border.color: Theme.lineStrong
+            }
+        }
         Item { Layout.fillHeight: true }
     }
 }

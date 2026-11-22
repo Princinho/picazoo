@@ -571,6 +571,16 @@ std::optional<FolderId> LibraryDb::folderIdForPath(Database& read, const QString
     return q.int64(0);
 }
 
+QHash<RootId, qint64> LibraryDb::rootItemCounts(Database& read)
+{
+    std::lock_guard lock(read.mutex());
+    QHash<RootId, qint64> out;
+    auto q = read.prepare("SELECT root_id, SUM(item_count) FROM folder GROUP BY root_id");
+    while (q.step())
+        out.insert(q.int64(0), q.int64(1));
+    return out;
+}
+
 QList<QPair<FolderId, QString>> LibraryDb::folderPaths() const
 {
     std::lock_guard lock(db_.mutex());

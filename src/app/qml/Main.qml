@@ -5,11 +5,13 @@ import QtQuick.Layouts
 
 ApplicationWindow {
     id: win
-    width: 1400
+    width: 1440
     height: 900
     visible: true
     title: app ? "Picazoo " + app.version : "Picazoo"
-    color: "#1e1e1e"
+    color: Theme.bg
+    font.family: Theme.font
+    font.pixelSize: 14
 
     readonly property bool ready: startupError === "" && app !== null
     property bool viewerOpen: false
@@ -31,66 +33,6 @@ ApplicationWindow {
         libraryView.forceActiveFocus()
     }
 
-    menuBar: MenuBar {
-        visible: win.ready && !win.viewerOpen
-        Menu {
-            title: "&Fichier"
-            Action {
-                text: "Ajouter un dossier…"
-                enabled: win.ready && onboarding.done
-                onTriggered: addFolderDialog.open()
-            }
-            MenuSeparator {}
-            Action {
-                text: "&Quitter"
-                shortcut: StandardKey.Quit
-                onTriggered: Qt.quit()
-            }
-        }
-        Menu {
-            title: "&Affichage"
-            Action {
-                text: "Agrandir les vignettes"
-                shortcut: "Ctrl++"
-                enabled: win.ready
-                onTriggered: gridModel.thumbSize = gridModel.thumbSize + 32
-            }
-            Action {
-                text: "Réduire les vignettes"
-                shortcut: "Ctrl+-"
-                enabled: win.ready
-                onTriggered: gridModel.thumbSize = gridModel.thumbSize - 32
-            }
-            MenuSeparator {}
-            Action {
-                text: "Dossiers par année"
-                checkable: true
-                checked: win.ready && folderModel.mode === "by_year"
-                onTriggered: folderModel.mode = "by_year"
-            }
-            Action {
-                text: "Dossiers en arborescence"
-                checkable: true
-                checked: win.ready && folderModel.mode === "tree"
-                onTriggered: folderModel.mode = "tree"
-            }
-        }
-        Menu {
-            title: "&Outils"
-            Action {
-                text: "Dossiers surveillés…"
-                enabled: win.ready && onboarding.done
-                onTriggered: watchedFolders.open()
-            }
-            Action {
-                text: "Réanalyser les dossiers"
-                shortcut: "F5"
-                enabled: win.ready && onboarding.done
-                onTriggered: app.rescan()
-            }
-        }
-    }
-
     // Erreur au démarrage : stockage de Picazoo inaccessible.
     Label {
         visible: startupError !== ""
@@ -99,6 +41,7 @@ ApplicationWindow {
         wrapMode: Text.WordWrap
         horizontalAlignment: Text.AlignHCenter
         text: startupError
+        color: Theme.text
         font.pixelSize: 16
     }
 
@@ -116,6 +59,8 @@ ApplicationWindow {
         enabled: visible
         focus: visible
         onOpenItem: id => win.openViewer(id)
+        onAddFolder: addFolderDialog.open()
+        onWatchedFolders: watchedFoldersPopup.open()
     }
 
     Loader {
@@ -131,7 +76,7 @@ ApplicationWindow {
     }
 
     WatchedFolders {
-        id: watchedFolders
+        id: watchedFoldersPopup
     }
 
     Timer {

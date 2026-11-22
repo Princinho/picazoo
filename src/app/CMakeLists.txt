@@ -7,6 +7,16 @@ file(GLOB PICAZOO_QML_FILES CONFIGURE_DEPENDS
 
 qt_add_executable(picazoo WIN32 ${PICAZOO_APP_SOURCES} picazoo.rc)
 
+set_source_files_properties(qml/Theme.qml PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
+
+# Logo (qrc:/brand/…), dessins de assets/icons.
+qt_add_resources(picazoo "picazoo_brand"
+    PREFIX "/brand"
+    BASE "${PROJECT_SOURCE_DIR}/assets/icons"
+    FILES
+        "${PROJECT_SOURCE_DIR}/assets/icons/picazoo.svg"
+        "${PROJECT_SOURCE_DIR}/assets/icons/picazoo-small.svg")
+
 qt_add_qml_module(picazoo
     URI Picazoo
     VERSION 1.0

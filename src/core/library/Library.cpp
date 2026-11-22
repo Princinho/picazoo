@@ -502,6 +502,8 @@ std::optional<Item> Library::item(ItemId id) const { return LibraryDb::item(*uiD
 
 qint64 Library::itemCount() const { return LibraryDb::itemCount(*uiDb_); }
 
+QHash<RootId, qint64> Library::rootItemCounts() const { return LibraryDb::rootItemCounts(*uiDb_); }
+
 void Library::prioritize(const QList<ItemId>& visible, const QList<ItemId>& nearby)
 {
     pipeline_->prioritize(visible, nearby);

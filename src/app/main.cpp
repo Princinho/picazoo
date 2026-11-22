@@ -46,14 +46,15 @@ private:
 void applyDarkPalette(QGuiApplication& app)
 {
     QPalette p;
-    const QColor window(0x2b, 0x2b, 0x2b), base(0x1e, 0x1e, 0x1e), text(0xe6, 0xe6, 0xe6);
-    const QColor accent(0x3d, 0x8e, 0xe0);
+    // Couleurs de qml/Theme.qml (« Atelier sombre ») pour les contrôles standard.
+    const QColor window(0x18, 0x1B, 0x21), base(0x1F, 0x23, 0x2A), text(0xE9, 0xEC, 0xF1);
+    const QColor accent(0x2F, 0x7B, 0xC8);
     p.setColor(QPalette::Window, window);
     p.setColor(QPalette::WindowText, text);
     p.setColor(QPalette::Base, base);
     p.setColor(QPalette::AlternateBase, window);
     p.setColor(QPalette::Text, text);
-    p.setColor(QPalette::Button, QColor(0x3a, 0x3a, 0x3a));
+    p.setColor(QPalette::Button, base);
     p.setColor(QPalette::ButtonText, text);
     p.setColor(QPalette::ToolTipBase, base);
     p.setColor(QPalette::ToolTipText, text);

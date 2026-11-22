@@ -92,6 +92,8 @@ public:
     static std::optional<Item> item(Database& read, ItemId id);
     static std::optional<FolderId> folderIdForPath(Database& read, const QString& path);
     static qint64 itemCount(Database& read);
+    // Nombre d'éléments par racine surveillée.
+    static QHash<RootId, qint64> rootItemCounts(Database& read);
     // Tous les dossiers (identifiant, chemin), pour les mises à jour partielles.
     QList<QPair<FolderId, QString>> folderPaths() const;
 

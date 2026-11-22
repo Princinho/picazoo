@@ -181,34 +181,50 @@ FocusScope {
                     anchors.left: parent.left
                     anchors.right: parent.right
                     anchors.bottom: parent.bottom
-                    anchors.bottomMargin: 4
+                    anchors.bottomMargin: 6
                     height: 1
-                    color: "#3a3a3a"
+                    color: Theme.line
                 }
                 RowLayout {
                     anchors.fill: parent
-                    anchors.bottomMargin: 6
-                    spacing: 12
+                    anchors.bottomMargin: 12
+                    spacing: 14
                     Label {
+                        Layout.alignment: Qt.AlignBottom
                         text: rowItem.folderName
-                        font.pixelSize: 16
-                        font.bold: true
+                        font.family: Theme.displayFont
+                        font.pixelSize: 20
+                        font.weight: Font.DemiBold
+                        color: Theme.text
                         elide: Text.ElideRight
-                        Layout.maximumWidth: parent.width * 0.6
-                        HoverHandler { id: headerHover }
-                        ToolTip.visible: headerHover.hovered
+                        Layout.maximumWidth: parent.width * 0.5
+                    }
+                    Label {
+                        Layout.alignment: Qt.AlignBottom
+                        bottomPadding: 2
+                        text: rowItem.folderDate
+                        color: Theme.text2
+                    }
+                    Label {
+                        Layout.alignment: Qt.AlignBottom
+                        bottomPadding: 2
+                        text: rowItem.folderCount + (rowItem.folderCount > 1 ? " éléments" : " élément")
+                        color: Theme.text3
+                    }
+                    Item { Layout.fillWidth: true }
+                    Label {
+                        Layout.alignment: Qt.AlignBottom
+                        bottomPadding: 3
+                        text: rowItem.folderPath.split("\\").filter(s => s !== "").slice(-3).join("  ›  ")
+                        color: Theme.text3
+                        font.pixelSize: 12
+                        elide: Text.ElideLeft
+                        Layout.maximumWidth: parent.width * 0.35
+                        HoverHandler { id: pathHover }
+                        ToolTip.visible: pathHover.hovered
                         ToolTip.delay: 600
                         ToolTip.text: rowItem.folderPath
                     }
-                    Label {
-                        text: rowItem.folderDate
-                        color: "#9a9a9a"
-                    }
-                    Label {
-                        text: rowItem.folderCount + (rowItem.folderCount > 1 ? " éléments" : " élément")
-                        color: "#7a7a7a"
-                    }
-                    Item { Layout.fillWidth: true }
                 }
             }
 
@@ -241,8 +257,8 @@ FocusScope {
         property real originY: 0
         visible: false
         z: 1000
-        color: "#303d8ee0"
-        border.color: "#3d8ee0"
+        color: "#303D8BD9"
+        border.color: Theme.accent
         border.width: 1
     }
 
@@ -266,7 +282,7 @@ FocusScope {
         anchors.centerIn: parent
         visible: list.count === 0
         text: app.scanActive ? "Recherche de vos photos…" : "Aucune photo trouvée dans les dossiers surveillés."
-        color: "#8a8a8a"
+        color: Theme.text3
         font.pixelSize: 16
     }
 }

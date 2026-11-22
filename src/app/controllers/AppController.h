@@ -18,6 +18,7 @@ class AppController : public QObject {
     Q_PROPERTY(bool scanActive READ scanActive NOTIFY progressChanged)
     Q_PROPERTY(bool scanPaused READ scanPaused NOTIFY progressChanged)
     Q_PROPERTY(QString scanText READ scanText NOTIFY progressChanged)
+    Q_PROPERTY(double scanProgress READ scanProgress NOTIFY progressChanged) // 0–1, ou -1 si inconnue
     Q_PROPERTY(QString folderSort READ folderSort WRITE setFolderSort NOTIFY sortChanged)
     Q_PROPERTY(QString itemSort READ itemSort WRITE setItemSort NOTIFY sortChanged)
     Q_PROPERTY(qint64 lastFolderId READ lastFolderId WRITE setLastFolderId NOTIFY lastFolderChanged)
@@ -30,6 +31,7 @@ public:
     bool scanActive() const;
     bool scanPaused() const;
     QString scanText() const;
+    double scanProgress() const;
     QString folderSort() const;
     void setFolderSort(const QString& s);
     QString itemSort() const;

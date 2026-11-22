@@ -69,6 +69,7 @@ GridParams GridRowModel::params() const
     p.width = width_;
     p.thumbSize = thumbSize_;
     p.spacing = spacing();
+    p.headerHeight = 60;
     return p;
 }
 
