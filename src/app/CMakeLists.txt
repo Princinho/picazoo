@@ -20,10 +20,16 @@ set_target_properties(picazoo PROPERTIES OUTPUT_NAME "picazoo")
 # Dossier autonome (T077) : cmake --install build/windows-release --prefix dist/picazoo
 # -> dist/picazoo/bin/picazoo.exe
 # Qt (QML, plugins, FFmpeg de Qt Multimedia) via le script de déploiement de Qt ;
-# DLL vcpkg via X_VCPKG_APPLOCAL_DEPS_INSTALL (voir CMakePresets.json).
 install(TARGETS picazoo RUNTIME DESTINATION bin)
 qt_generate_deploy_qml_app_script(
     TARGET picazoo
     OUTPUT_SCRIPT picazoo_deploy_script
     NO_TRANSLATIONS)
 install(SCRIPT "${picazoo_deploy_script}")
+# DLL des dépendances vcpkg (libheif, LibRaw, TurboJPEG, SQLite…), copiées directement :
+# l'outil « applocal » de vcpkg exige dumpbin, absent hors du Developer PowerShell.
+if(DEFINED VCPKG_INSTALLED_DIR AND DEFINED VCPKG_TARGET_TRIPLET)
+    install(DIRECTORY "${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/$<$<CONFIG:Debug>:debug/>bin/"
+            DESTINATION bin
+            FILES_MATCHING PATTERN "*.dll")
+endif()
