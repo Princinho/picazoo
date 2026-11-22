@@ -549,8 +549,9 @@ Les durées sont mesurées sur l'ordinateur de référence du projet (portable
 - **Ordre du parcours** : celui de la fenêtre de l'Explorateur, comme la
   visionneuse Photos de Windows (tranché le 2026-11-22). Le tri est lu au
   moment de l'ouverture ; s'il est changé ensuite dans l'Explorateur, le
-  parcours en cours ne bouge pas. Les regroupements de l'Explorateur
-  (« Grouper par ») et ses filtres ne sont pas repris.
+  parcours en cours ne bouge pas. L'ordre repris est celui de l'affichage,
+  regroupements (« Grouper par ») compris ; les photos qu'un filtre de
+  l'Explorateur masque sont placées à la fin, dans l'ordre des noms.
 - **Vidéos** : hors de la visionneuse autonome (tranché le 2026-11-22) ; elles ne sont ni
   parcourues ni associées à la visionneuse, et restent lues dans
   l'application complète (001).
