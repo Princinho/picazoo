@@ -55,5 +55,16 @@ tronqué, une petite icône PNG), une vidéo MP4 et un fichier texte.
 $env:PICAZOO_VIEWER_TIMING=1; .\build\windows-release\picazoo-viewer.exe C:\PicazooTest\Visionneuse\photo2.jpg
 ```
 
-Le journal de débogage (DebugView) donne le temps entre le lancement et la
-première image affichée (seuil : 1 s, 2 s à froid).
+La sortie d'erreur (ou DebugView) donne les jalons du démarrage ; la ligne
+« première image du moteur » est le moment où la photo est à l'écran (seuil :
+1 s, 2 s à froid). Mesuré lors de la mise en œuvre : 0,6 à 1,3 s à chaud sur la
+machine de référence, médiane ~1,0 s (research V2).
+
+## Essais automatisés de l'interface
+
+Sans souris ni clavier, `PICAZOO_VIEWER_SCRIPT` envoie des événements à la
+fenêtre et `PICAZOO_SCREENSHOT` capture le résultat (contracts/command-line.md) :
+
+```powershell
+$env:PICAZOO_SCREENSHOT="C:\Temp\zoom.png;4000"; $env:PICAZOO_VIEWER_SCRIPT="wait:1200,key:Right,key:Right,wheel:1400:930:120,wheel:1400:930:120"; .\build\windows-release\picazoo-viewer.exe C:\PicazooTest\Visionneuse\photo2.jpg
+```

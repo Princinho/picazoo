@@ -8,8 +8,12 @@
 #include "video/VideoProbe.h"
 
 #include <QDateTime>
+#include <QDir>
+#include <QFileInfo>
 #include <QLocale>
 #include <QTimeZone>
+
+#include <algorithm>
 
 using namespace picazoo;
 
@@ -102,6 +106,60 @@ QString AppController::urlToPath(const QUrl& url)
 }
 
 void AppController::addRoot(const QUrl& folder) { lib_.addRoot(urlToPath(folder)); }
+
+void AppController::addRootPath(const QString& folder) { lib_.addRoot(QDir::toNativeSeparators(folder)); }
+
+namespace {
+
+QString normalizedPath(const QString& p)
+{
+    QString n = QDir::toNativeSeparators(QDir::cleanPath(p));
+    while (n.size() > 3 && n.endsWith(u'\\'))
+        n.chop(1);
+    return n;
+}
+
+bool isInside(const QString& path, const QString& folder)
+{
+    const QString f = normalizedPath(folder);
+    return path.compare(f, Qt::CaseInsensitive) == 0 ||
+           path.startsWith(f.endsWith(u'\\') ? f : f + u'\\', Qt::CaseInsensitive);
+}
+
+} // namespace
+
+void AppController::showPath(const QString& path)
+{
+    const QFileInfo fi(path);
+    const QString file = normalizedPath(fi.absoluteFilePath());
+    const QString dir = normalizedPath(fi.absolutePath());
+
+    for (const Folder& f : lib_.folders(FolderSort::NameAsc)) {
+        if (normalizedPath(f.path).compare(dir, Qt::CaseInsensitive) != 0)
+            continue;
+        for (const ItemSummary& s : lib_.itemSummaries(f.id, ItemSort::NameAsc)) {
+            if (s.fileName.compare(fi.fileName(), Qt::CaseInsensitive) == 0) {
+                emit showItem(s.id);
+                return;
+            }
+        }
+        break;
+    }
+    for (const WatchedRoot& r : lib_.roots()) {
+        if (!isInside(dir, r.path))
+            continue;
+        const bool excluded = std::any_of(r.excluded.cbegin(), r.excluded.cend(),
+                                          [&](const QString& e) { return isInside(dir, e); });
+        if (!excluded) {
+            emit showMessage(QStringLiteral("Picazoo analyse encore ce dossier ; « %1 » apparaîtra dans la "
+                                            "bibliothèque d'ici quelques instants.")
+                                 .arg(fi.fileName()));
+            return;
+        }
+    }
+    Q_UNUSED(file);
+    emit askAddFolder(dir);
+}
 
 void AppController::removeRoot(qint64 rootId) { lib_.removeRoot(rootId); }
 

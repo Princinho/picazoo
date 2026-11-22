@@ -13,8 +13,12 @@
 Variables de développement : `PICAZOO_DATA_DIR` (emplacement de
 `viewer.ini`), `PICAZOO_SCREENSHOT=<fichier.png>[;délai ms]` (capture puis
 fermeture), `PICAZOO_REGISTRY_ROOT=<sous-clé de HKCU>` (tests : redirige
-l'inscription), `PICAZOO_VIEWER_TIMING=1` (journal des temps d'ouverture
-sur la sortie de débogage).
+l'inscription), `PICAZOO_VIEWER_TIMING=1` (jalons du démarrage et temps de
+décodage sur la sortie d'erreur et la sortie de débogage),
+`PICAZOO_VIEWER_SCRIPT=wait:1200,key:Right,wheel:1400:930:120,…` (événements
+clavier, molette et souris envoyés à la fenêtre, pour les essais
+automatisés), `PICAZOO_SHOW_PROPOSAL=1` (montre la carte d'association malgré
+`PICAZOO_SCREENSHOT`).
 
 Un chemin relatif est résolu par rapport au dossier courant ; un argument
 `file:///…` est accepté.

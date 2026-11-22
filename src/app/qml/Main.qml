@@ -112,5 +112,39 @@ ApplicationWindow {
             storageDialog.message = message
             storageDialog.open()
         }
+        // « Ouvrir dans Picazoo » depuis la visionneuse autonome (005)
+        function onShowItem(itemId) {
+            if (win.viewerOpen)
+                win.closeViewer(0)
+            selection.current = itemId
+            libraryView.revealItem(itemId)
+            libraryView.forceActiveFocus()
+        }
+        function onShowMessage(message) {
+            storageDialog.message = message
+            storageDialog.open()
+        }
+        function onAskAddFolder(folder) {
+            addFolderQuestion.folder = folder
+            addFolderQuestion.open()
+        }
+    }
+
+    // L'ajout d'un dossier n'est jamais fait d'office (principe IV).
+    Dialog {
+        id: addFolderQuestion
+        property string folder
+        anchors.centerIn: parent
+        modal: true
+        title: "Ajouter ce dossier à la bibliothèque ?"
+        standardButtons: Dialog.Yes | Dialog.No
+        width: Math.min(560, win.width - 64)
+        onAccepted: app.addRootPath(folder)
+        Label {
+            width: addFolderQuestion.availableWidth
+            wrapMode: Text.WrapAtWordBoundaryOrAnywhere
+            text: "La photo se trouve dans « " + addFolderQuestion.folder + " », qui ne fait pas partie de vos "
+                  + "dossiers surveillés. Picazoo peut ajouter ce dossier et ses sous-dossiers à la bibliothèque."
+        }
     }
 }

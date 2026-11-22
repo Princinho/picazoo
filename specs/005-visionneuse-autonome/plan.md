@@ -144,6 +144,13 @@ propre module (`PicazooViewer`) : la visionneuse de la 001 reste intacte.
 | Ordre de l'Explorateur lu à temps (V5) | ouverture depuis une fenêtre triée par date | ordre naturel des noms, sans bloquer l'affichage |
 | Temps de démarrage à froid (V2) | chronométrage double-clic → photo | réduire les modules Qt chargés, retarder la bande de vignettes |
 
+## Mesures et écarts (mise en œuvre)
+
+| Seuil | Mesure | Commentaire |
+|---|---|---|
+| SC-001 : photo à l'écran < 1 s à chaud | 0,6 à 1,3 s, médiane ~1,0 s (JPEG 12 Mpx, 1920 × 1200) | Le décodage ne coûte que 15–25 ms ; le reste est le démarrage de Qt et du pilote graphique, très sensible à la charge du processeur basse consommation de référence. Mesures et parades dans research V2 (bridage énergétique, pilote préchargé, commandes différées). À confirmer au double-clic réel depuis l'Explorateur. |
+| Boucle de rendu | « basic » au lieu de « threaded » | Nécessaire pour la fenêtre translucide (research V3). |
+
 ## Complexity Tracking
 
 Aucune violation de la constitution à justifier.

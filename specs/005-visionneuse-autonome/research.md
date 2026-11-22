@@ -34,6 +34,21 @@ Décisions techniques de la phase 0. Chacune : décision, raison, alternatives.
 - **Raison** : sur l'ordinateur de référence, une photo de 24 Mpx se décode
   à la taille de l'écran en ~80 ms (mesures de la 001) ; le chargement de Qt
   Quick et de Direct3D domine. Les mener en parallèle tient la seconde.
+- **Ajouts issus des mesures (mise en œuvre)** :
+  6. le processus s'exclut du bridage énergétique de Windows (EcoQoS) : tant
+     qu'aucune fenêtre n'est visible, Windows le reléguait sur les cœurs basse
+     consommation (création de `QGuiApplication` de 90 ms à plus d'une seconde) ;
+  7. le pilote graphique (Direct3D 11 et DirectComposition) est chargé sur un
+     thread dès l'entrée dans `main` : c'était le poste le plus lourd
+     (~600 ms), il se recouvre désormais avec le chargement de Qt ;
+  8. seul le voile et la scène sont chargés d'abord (Qt Quick sans Controls) ;
+     les commandes (`Chrome.qml`, Qt Quick Controls) arrivent juste après la
+     première photo ; QML chargé en ~40 ms au lieu de ~200 ms ;
+  9. l'ordre de l'Explorateur et le préchargement des voisines attendent la
+     première photo affichée.
+  Mesures (photo JPEG de 12 Mpx, 1920 × 1200, machine de référence, à chaud) :
+  première image à l'écran entre 0,6 et 1,3 s selon la charge de la machine
+  (médiane ~1,0 s) ; le décodage de la photo ne prend que 15 à 25 ms.
 - **Alternatives** : processus résident en arrière-plan (ouverture
   instantanée mais mémoire occupée en permanence, contraire à « légère »).
 
@@ -52,6 +67,14 @@ Décisions techniques de la phase 0. Chacune : décision, raison, alternatives.
   (`HKCU\…\Themes\Personalize\EnableTransparency`) force le mode opaque.
 - **Raison** : c'est l'aspect de la Visionneuse de photos Picasa choisi par
   l'utilisateur ; Qt le permet sans code natif de composition.
+- **Constaté à la mise en œuvre** : avec une fenêtre translucide
+  (DirectComposition), la boucle de rendu à thread séparé de Qt Quick ne fait
+  plus avancer les animations ni les minuteries QML (voile resté invisible). La
+  visionneuse utilise la boucle « basic » (`QSG_RENDER_LOOP=basic`, rendu sur
+  le thread de l'interface), ce qui suffit pour une scène aussi simple ; le
+  décodage reste sur ses propres threads. `show()` est préféré à
+  `showFullScreen()`, plus lent de plusieurs centaines de millisecondes pour le
+  même résultat (fenêtre sans bordure couvrant l'écran).
 - **Alternatives** : capture d'écran du bureau floutée en fond (fige le
   bureau et lit l'écran : refusé) ; `WS_EX_LAYERED` avec OpenGL (plan B si
   DirectComposition échoue sur une machine).
