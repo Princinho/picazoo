@@ -32,4 +32,4 @@
 ## Notes
 
 - Items marked incomplete require spec updates before `/speckit-clarify` or `/speckit-plan`
-- Points à trancher à la relecture (ou par `/speckit-clarify`) : ordre du parcours (noms ou tri de l'Explorateur), vidéos dans la visionneuse autonome, boucle en fin de dossier, fenêtre classique ou voile sur le bureau façon Picasa.
+- Points à trancher à la relecture (ou par `/speckit-clarify`) : ordre du parcours (noms ou tri de l'Explorateur), vidéos dans la visionneuse autonome, boucle en fin de dossier. Présentation tranchée le 2026-11-22 : voile semi-transparent façon Picasa (FR-022, FR-023, FR-023a).

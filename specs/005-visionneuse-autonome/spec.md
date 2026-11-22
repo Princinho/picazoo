@@ -8,6 +8,12 @@
 
 **Input**: User description: "Comme dans Picasa, on double-clique sur une image dans l'Explorateur Windows et seule une visionneuse légère s'ouvre, sans l'application complète. Elle affiche cette image et permet de passer à toutes les autres images du même dossier. Zoom et dézoom à la molette de la souris. Transitions fluides et animées d'une image à l'autre."
 
+## Clarifications
+
+### Session 2026-11-22
+
+- Q: Fenêtre classique sur fond sombre, ou voile semi-transparent posé sur le bureau comme la Visionneuse de photos Picasa ? → A: Le voile semi-transparent.
+
 ## Contexte
 
 Picasa installait à côté de la bibliothèque une petite visionneuse, la
@@ -36,8 +42,9 @@ double-clic pour voir en grand) que le principe V de la constitution.
 ### User Story 1 - Ouvrir une photo depuis l'Explorateur en un instant (Priority: P1)
 
 Dans l'Explorateur Windows, l'utilisateur double-clique sur une photo (ou
-choisit « Ouvrir avec › Picazoo »). Une fenêtre sombre s'ouvre presque
-aussitôt avec la photo entière, ajustée à la fenêtre, dans le bon sens. Rien
+choisit « Ouvrir avec › Picazoo »). Presque aussitôt, un voile sombre
+semi-transparent recouvre l'écran, le bureau restant deviné derrière, et la
+photo s'y pose, entière, ajustée à l'écran, dans le bon sens. Rien
 d'autre ne se passe : pas de bibliothèque, pas d'écran d'accueil, pas
 d'analyse de dossiers, pas de bruit du disque. Le nom du fichier et sa
 position dans le dossier (« 12 sur 87 ») sont affichés discrètement. Échap
@@ -125,9 +132,9 @@ proposé.
 L'utilisateur tourne la molette vers l'avant sur un visage de la photo :
 l'image grossit autour du point situé sous le curseur, qui reste sous le
 curseur, avec un mouvement doux. Vers l'arrière, elle rétrécit jusqu'à
-revenir à l'ajustement à la fenêtre. Quand l'image est plus grande que la
-fenêtre, il la fait glisser en maintenant le bouton de la souris. Un
-double-clic bascule entre l'ajustement à la fenêtre et la taille réelle
+revenir à l'ajustement à l'écran. Quand l'image est plus grande que
+l'écran, il la fait glisser en maintenant le bouton de la souris. Un
+double-clic bascule entre l'ajustement à l'écran et la taille réelle
 (100 %) au point cliqué. Le niveau de zoom est affiché, et des boutons ainsi
 que Ctrl + / Ctrl − / Ctrl 0 offrent les mêmes possibilités au clavier.
 
@@ -138,27 +145,27 @@ vérifier une mise au point ou de lire un détail sans autre logiciel.
 dans un coin ; placer le curseur sur ce repère et tourner la molette de
 5 crans vers l'avant : le repère reste sous le curseur et devient net en
 pleine résolution ; faire glisser l'image ; 5 crans vers l'arrière ramènent
-à l'ajustement à la fenêtre.
+à l'ajustement à l'écran.
 
 **Acceptance Scenarios**:
 
-1. **Given** une photo ajustée à la fenêtre, **When** l'utilisateur tourne
+1. **Given** une photo ajustée à l'écran, **When** l'utilisateur tourne
    la molette vers l'avant avec le curseur sur un point de l'image,
    **Then** l'image grossit progressivement et ce point reste sous le
    curseur.
 2. **Given** une photo zoomée, **When** l'utilisateur tourne la molette vers
    l'arrière, **Then** l'image rétrécit autour du curseur et s'arrête à
-   l'ajustement à la fenêtre.
-3. **Given** une photo zoomée plus grande que la fenêtre, **When**
+   l'ajustement à l'écran.
+3. **Given** une photo zoomée plus grande que l'écran, **When**
    l'utilisateur la fait glisser, **Then** elle suit la souris sans jamais
-   laisser un bord de l'image s'éloigner au-delà du bord de la fenêtre.
+   laisser un bord de l'image s'éloigner au-delà du bord de l'écran.
 4. **Given** une photo zoomée au-delà de la définition de l'aperçu affiché,
    **When** le zoom s'arrête, **Then** la zone visible devient nette en
    pleine résolution en moins d'une seconde, sans que le zoom ou le
    déplacement soient bloqués entre-temps.
 5. **Given** une photo zoomée, **When** l'utilisateur passe à la photo
-   suivante, **Then** celle-ci s'ouvre ajustée à la fenêtre.
-6. **Given** une image plus petite que la fenêtre (icône, capture), **When**
+   suivante, **Then** celle-ci s'ouvre ajustée à l'écran.
+6. **Given** une image plus petite que l'écran (icône, capture), **When**
    elle est ouverte, **Then** elle est affichée à sa taille réelle, centrée,
    sans être agrandie ni floutée.
 
@@ -215,8 +222,8 @@ partie de la bibliothèque, l'application s'ouvre sur ce dossier, la photo
 sélectionnée. Sinon, elle propose d'ajouter ce dossier aux dossiers
 surveillés, sans le faire d'office. D'autres actions sont à portée :
 afficher le fichier dans l'Explorateur, voir les informations de la photo
-(nom, chemin, date de prise de vue, dimensions, poids, appareil), passer en
-plein écran (F11) et en sortir.
+(nom, chemin, date de prise de vue, dimensions, poids, appareil), rendre le voile
+opaque (F11) ou le remettre semi-transparent.
 
 **Why this priority**: la visionneuse se suffit à elle-même pour regarder ;
 ces passerelles évitent seulement de devoir chercher la photo ailleurs.
@@ -307,8 +314,11 @@ souris, la bande disparaît.
   proposés.
 - **Chemin très long, caractères spéciaux** (accents, emoji) : la photo
   s'affiche normalement.
-- **Écrans multiples** : la visionneuse s'ouvre sur l'écran où se trouve la
-  souris, et se souvient de sa taille et de sa position.
+- **Écrans multiples** : le voile recouvre l'écran où se trouve la souris ;
+  les autres écrans restent utilisables.
+- **Notification ou fenêtre qui passe au premier plan** pendant la
+  consultation : la visionneuse ne se ferme pas et revient au premier plan
+  dès qu'on la sélectionne.
 - **Stockage de Picazoo inaccessible ou disque plein** : la visionneuse
   fonctionne quand même ; seuls les réglages ne sont pas retenus.
 
@@ -353,8 +363,8 @@ souris, la bande disparaît.
 - **FR-009**: La liste du parcours MUST suivre les ajouts, suppressions et
   renommages faits dans le dossier pendant la consultation.
 - **FR-010**: Chaque photo MUST être affichée dans le bon sens (orientation
-  enregistrée par l'appareil), entière et non déformée, ajustée à la
-  fenêtre ; une image plus petite que la fenêtre MUST être affichée à sa
+  enregistrée par l'appareil), entière et non déformée, ajustée à
+  l'écran ; une image plus petite que l'écran MUST être affichée à sa
   taille réelle, sans agrandissement.
 - **FR-011**: La visionneuse MUST afficher le nom du fichier et sa position
   dans le parcours (« 12 sur 87 »).
@@ -379,30 +389,39 @@ souris, la bande disparaît.
   l'arrière) autour du point situé sous le curseur, qui reste sous le
   curseur, avec un mouvement doux ; les pavés tactiles (pincement, défilement
   à deux doigts) MUST se comporter de la même façon.
-- **FR-017**: Le zoom MUST aller de l'ajustement à la fenêtre (minimum)
+- **FR-017**: Le zoom MUST aller de l'ajustement à l'écran (minimum)
   jusqu'à 16 fois la taille réelle (maximum), et son niveau MUST être
   affiché.
 - **FR-018**: Un double-clic sur l'image MUST basculer entre l'ajustement à
-  la fenêtre et la taille réelle centrée sur le point cliqué ; des boutons
+  l'écran et la taille réelle centrée sur le point cliqué ; des boutons
   et les raccourcis Ctrl +, Ctrl − et Ctrl 0 MUST offrir zoom avant, zoom
   arrière et retour à l'ajustement.
-- **FR-019**: Une image zoomée plus grande que la fenêtre MUST pouvoir être
+- **FR-019**: Une image zoomée plus grande que l'écran MUST pouvoir être
   déplacée en la faisant glisser à la souris, sans que ses bords ne
-  s'éloignent des bords de la fenêtre.
+  s'éloignent des bords de l'écran.
 - **FR-020**: Au-delà de la définition de l'aperçu affiché, la zone visible
   MUST être affichée en pleine résolution dès qu'elle est disponible, sans
   bloquer le zoom ni le déplacement.
-- **FR-021**: Passer à une autre photo MUST la montrer ajustée à la
-  fenêtre.
+- **FR-021**: Passer à une autre photo MUST la montrer ajustée à
+  l'écran.
 
 **Fenêtre et passerelles**
 
-- **FR-022**: La visionneuse MUST présenter l'image sur fond sombre, avec
-  des commandes discrètes qui s'estompent quand la souris ne bouge plus et
-  reviennent dès qu'elle bouge.
-- **FR-023**: La visionneuse MUST pouvoir passer en plein écran (F11) et en
-  sortir ; Échap MUST faire sortir du plein écran, puis fermer la
-  visionneuse.
+- **FR-022**: La visionneuse MUST se présenter, comme la Visionneuse de
+  photos Picasa, sous la forme d'un voile sombre semi-transparent qui
+  recouvre tout l'écran (barre des tâches comprise), le bureau restant
+  visible en transparence, avec la photo posée au centre et des commandes
+  discrètes qui s'estompent quand la souris ne bouge plus et reviennent dès
+  qu'elle bouge. Le voile apparaît et disparaît en fondu.
+- **FR-023**: Les utilisateurs MUST pouvoir rendre le voile entièrement
+  opaque (F11 ou un bouton) pour regarder sans distraction, et revenir au
+  voile semi-transparent ; Échap et un bouton « Fermer » MUST fermer la
+  visionneuse. Quand la transparence est désactivée dans les réglages de
+  Windows, le voile MUST être opaque.
+- **FR-023a**: La visionneuse MUST rester accessible comme une fenêtre
+  ordinaire : présente dans la barre des tâches et dans Alt+Tab, elle cède
+  la place quand l'utilisateur passe à une autre application et revient
+  quand il y retourne.
 - **FR-024**: La visionneuse MUST afficher sur demande les informations de
   la photo : nom, chemin, date de prise de vue (ou à défaut date du
   fichier), dimensions, poids et appareil quand ils sont connus.
@@ -415,9 +434,9 @@ souris, la bande disparaît.
   dossier aux dossiers surveillés et ne l'ajoute que sur acceptation.
 - **FR-027**: La visionneuse MUST proposer une bande de vignettes des
   photos voisines, cliquables, qui se masque d'elle-même et sur demande.
-- **FR-028**: La visionneuse MUST retenir d'une ouverture à l'autre la
-  taille et la position de sa fenêtre, le plein écran et l'affichage de la
-  bande de vignettes.
+- **FR-028**: La visionneuse MUST retenir d'une ouverture à l'autre le
+  choix du voile (semi-transparent ou opaque) et l'affichage de la bande de
+  vignettes.
 
 **Association avec Windows**
 
@@ -456,8 +475,8 @@ souris, la bande disparaît.
   position de la photo affichée ; elle n'existe qu'en mémoire.
 - **Photo affichée** : le fichier montré, son orientation, ses informations
   (celles de la 001), son niveau de zoom et la zone visible.
-- **Réglages de la visionneuse** : taille et position de la fenêtre, plein
-  écran, bande de vignettes, réponse à la proposition d'association
+- **Réglages de la visionneuse** : voile semi-transparent ou opaque, bande
+  de vignettes, réponse à la proposition d'association
   (« plus tard », « ne plus demander », formats choisis).
 - **Association de format** : pour chaque format pris en charge, le fait
   que Picazoo soit inscrit auprès de Windows et qu'il soit ou non
@@ -522,9 +541,11 @@ Les durées sont mesurées sur l'ordinateur de référence du projet (portable
 - **Molette** : elle zoome toujours (comme demandé) ; elle ne sert pas à
   changer de photo. Les flèches, les boutons et les bords de l'image s'en
   chargent.
-- **Fenêtre** : une fenêtre classique sur fond sombre, avec plein écran à
-  la demande. Le voile semi-transparent posé sur le bureau de la
-  Visionneuse de photos Picasa est une variante possible, à confirmer.
+- **Présentation** : le voile semi-transparent sur le bureau, comme la
+  Visionneuse de photos Picasa (tranché le 2026-11-22) ; pas de fenêtre
+  redimensionnable classique. Un clic sur le voile hors de la photo ne
+  ferme pas la visionneuse, pour éviter les fermetures accidentelles
+  pendant un déplacement.
 - Pas de suppression, de rotation, de retouche, de diaporama, d'impression
   ni d'envoi dans la 005 : la visionneuse ne fait que regarder. La rotation
   ou la suppression toucheraient aux fichiers et passeront, plus tard, par
