@@ -5,7 +5,7 @@ file(GLOB PICAZOO_QML_FILES CONFIGURE_DEPENDS
     RELATIVE "${CMAKE_CURRENT_SOURCE_DIR}"
     "${CMAKE_CURRENT_SOURCE_DIR}/qml/*.qml")
 
-qt_add_executable(picazoo WIN32 ${PICAZOO_APP_SOURCES})
+qt_add_executable(picazoo WIN32 ${PICAZOO_APP_SOURCES} picazoo.rc)
 
 qt_add_qml_module(picazoo
     URI Picazoo

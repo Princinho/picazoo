@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <title>Picazoo</title>
+  <!-- Icône Picazoo, piste C « la pile de photos » — 48 px et plus. -->
+  <defs>
+    <clipPath id="photo">
+      <rect x="140" y="172" width="232" height="150" rx="12"/>
+    </clipPath>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="#1B6FB5"/>
+  <rect x="118" y="150" width="276" height="230" rx="24" transform="rotate(-16 256 265)" fill="#FFFFFF" opacity="0.3"/>
+  <rect x="118" y="150" width="276" height="230" rx="24" transform="rotate(-7 256 265)" fill="#FFFFFF" opacity="0.6"/>
+  <g transform="rotate(5 256 265)">
+    <rect x="118" y="150" width="276" height="230" rx="24" fill="#FFFFFF"/>
+    <rect x="140" y="172" width="232" height="150" rx="12" fill="#15171C"/>
+    <g clip-path="url(#photo)">
+      <circle cx="318" cy="214" r="20" fill="#F2A93B"/>
+      <path d="M130 330 L208 252 L254 296 L292 262 L382 330 Z" fill="#1B6FB5"/>
+    </g>
+    <rect x="140" y="340" width="110" height="14" rx="7" fill="#D5DBE3"/>
+  </g>
+</svg>
