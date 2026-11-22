@@ -1,0 +1,36 @@
+# Build
+build/
+out/
+bin/
+obj/
+vcpkg_installed/
+CMakeUserPresets.json
+
+# C++ artefacts
+*.o
+*.obj
+*.a
+*.lib
+*.exe
+*.dll
+*.pdb
+*.ilk
+
+# IDE
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+
+# Divers
+*.log
+*.tmp
+*.swp
+.env*
+.DS_Store
+Thumbs.db
+
+# Claude Code (local)
+.claude/settings.local.json
+.claude/worktrees/
