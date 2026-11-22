@@ -32,7 +32,7 @@ if(MSVC)
     add_compile_definitions(NOMINMAX WIN32_LEAN_AND_MEAN UNICODE _UNICODE)
 endif()
 
-find_package(Qt6 6.12 REQUIRED COMPONENTS Core Gui Quick QuickControls2 Multimedia Test)
+find_package(Qt6 6.12 REQUIRED COMPONENTS Core Gui Quick QuickControls2 Multimedia Network Test)
 qt_standard_project_setup(REQUIRES 6.12)
 
 find_package(libjpeg-turbo CONFIG REQUIRED)
@@ -46,6 +46,7 @@ enable_testing()
 
 add_subdirectory(src/core)
 add_subdirectory(src/app)
+add_subdirectory(src/viewer)
 add_subdirectory(tests)
 add_subdirectory(bench)
 add_subdirectory(tools/make-icons)
