@@ -13,6 +13,9 @@
 ### Session 2026-11-22
 
 - Q: Fenêtre classique sur fond sombre, ou voile semi-transparent posé sur le bureau comme la Visionneuse de photos Picasa ? → A: Le voile semi-transparent.
+- Q: Dans quel ordre parcourir les photos du dossier ? → A: Dans l'ordre du tri affiché dans la fenêtre de l'Explorateur d'où la photo a été ouverte ; à défaut, ordre naturel des noms.
+- Q: Les vidéos font-elles partie de la visionneuse autonome ? → A: Non, elles sont exclues.
+- Q: Après la dernière photo, revenir à la première ? → A: Oui (boucle, comme Picasa).
 
 ## Contexte
 
@@ -86,8 +89,8 @@ photo est inchangé après fermeture.
 
 Depuis la photo ouverte, les flèches ← et → du clavier (ou les boutons à
 l'écran, ou un clic sur les bords gauche et droit de l'image) passent à la
-photo précédente ou suivante du même dossier, dans l'ordre des noms. Le
-passage est animé : l'image actuelle laisse doucement place à la suivante,
+photo précédente ou suivante du même dossier, dans l'ordre où l'Explorateur les montre.
+Le passage est animé : l'image actuelle laisse doucement place à la suivante,
 sans clignotement ni écran noir. Si l'utilisateur enchaîne les appuis ou
 garde la touche enfoncée, les photos défilent sans attendre la fin des
 animations. Début et Fin mènent à la première et à la dernière photo.
@@ -97,7 +100,7 @@ qui ne montre qu'une photo oblige à revenir sans cesse à l'Explorateur.
 
 **Independent Test**: dans un dossier de test de 10 photos (`photo1.jpg` à
 `photo10.jpg`) et d'un fichier texte, ouvrir `photo2.jpg` depuis
-l'Explorateur ; → mène à `photo3.jpg` (pas à `photo10.jpg`), avec une
+l'Explorateur (fenêtre triée par nom) ; → mène à `photo3.jpg` (pas à `photo10.jpg`), avec une
 transition visible ; 8 appuis rapides sur → mènent à `photo10.jpg` en moins
 d'une demi-seconde après le dernier appui ; le fichier texte n'est jamais
 proposé.
@@ -109,8 +112,9 @@ proposé.
    et nette à son terme.
 2. **Given** un dossier contenant des images, des vidéos et d'autres
    fichiers, **When** l'utilisateur parcourt le dossier, **Then** seules les
-   images aux formats pris en charge sont proposées, dans l'ordre naturel de
-   leurs noms (`2` avant `10`).
+   images aux formats pris en charge sont proposées, dans l'ordre du tri de la
+   fenêtre de l'Explorateur (par défaut l'ordre naturel des noms, `2` avant
+   `10`).
 3. **Given** la dernière photo du dossier, **When** l'utilisateur appuie
    sur →, **Then** la visionneuse revient à la première photo, et une
    indication brève le signale.
@@ -124,6 +128,13 @@ proposé.
    l'utilisateur en ouvre une, **Then** elle s'affiche aussi vite que dans un
    petit dossier, et le parcours du reste du dossier devient possible
    quelques instants plus tard.
+7. **Given** une fenêtre de l'Explorateur triée par date de modification,
+   du plus récent au plus ancien, **When** l'utilisateur y ouvre une photo
+   et appuie sur →, **Then** la visionneuse montre la photo qui la suit
+   dans cette fenêtre.
+8. **Given** une photo ouverte par glisser-déposer sur l'icône de Picazoo,
+   **When** l'utilisateur parcourt le dossier, **Then** les photos suivent
+   l'ordre naturel de leurs noms.
 
 ---
 
@@ -349,8 +360,13 @@ souris, la bande disparaît.
 
 - **FR-006**: La visionneuse MUST permettre de parcourir toutes les images
   prises en charge du dossier de la photo ouverte (sans les sous-dossiers),
-  dans l'ordre naturel des noms de fichiers, en ignorant les fichiers
-  cachés, les fichiers système et les fichiers d'autres types.
+  dans le même ordre que la fenêtre de l'Explorateur d'où elle a été
+  ouverte (colonne et sens du tri : nom, date, taille, type…). Si cet ordre
+  ne peut pas être connu (ouverture par « Ouvrir avec » depuis un autre
+  logiciel, glisser-déposer, fenêtre de l'Explorateur déjà fermée), le
+  parcours MUST suivre l'ordre naturel des noms (`2` avant `10`). Les
+  fichiers cachés, les fichiers système et les fichiers d'autres types
+  MUST être ignorés.
 - **FR-007**: Les formats parcourus et affichés MUST être les formats
   d'images de la 001 : JPEG, PNG, GIF (animé compris), BMP, TIFF, WebP,
   HEIC, et les RAW par leur aperçu intégré (au moins CR2, CR3, NEF, ARW,
@@ -530,14 +546,16 @@ Les durées sont mesurées sur l'ordinateur de référence du projet (portable
   11 ne laissent pas une application se déclarer d'office comme
   application par défaut : l'utilisateur confirme toujours dans les
   réglages de Windows, ce qui va dans le sens du « jamais imposé ».
-- **Ordre du parcours** : ordre naturel des noms, quel que soit le tri
-  choisi dans la fenêtre de l'Explorateur. Suivre le tri de l'Explorateur
-  est un choix possible, à confirmer.
-- **Vidéos** : hors de la visionneuse autonome ; elles ne sont ni
+- **Ordre du parcours** : celui de la fenêtre de l'Explorateur, comme la
+  visionneuse Photos de Windows (tranché le 2026-11-22). Le tri est lu au
+  moment de l'ouverture ; s'il est changé ensuite dans l'Explorateur, le
+  parcours en cours ne bouge pas. Les regroupements de l'Explorateur
+  (« Grouper par ») et ses filtres ne sont pas repris.
+- **Vidéos** : hors de la visionneuse autonome (tranché le 2026-11-22) ; elles ne sont ni
   parcourues ni associées à la visionneuse, et restent lues dans
   l'application complète (001).
 - **Boucle** : après la dernière photo, retour à la première (comme
-  Picasa), à confirmer.
+  Picasa, tranché le 2026-11-22).
 - **Molette** : elle zoome toujours (comme demandé) ; elle ne sert pas à
   changer de photo. Les flèches, les boutons et les bords de l'image s'en
   chargent.
