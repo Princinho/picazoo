@@ -190,6 +190,23 @@ QList<ItemId> LibraryDb::removeItemsUnder(const QString& path, QSet<FolderId>* t
     return ids;
 }
 
+QSet<FolderId> LibraryDb::removeItems(const QList<ItemId>& ids)
+{
+    QSet<FolderId> touched;
+    if (ids.isEmpty())
+        return touched;
+    Transaction tx(db_);
+    forChunks(ids, 500, [&](const QList<qint64>& chunk) {
+        auto q = db_.prepare(("SELECT DISTINCT folder_id FROM item WHERE id IN (" + idList(chunk) + ")").toUtf8().constData());
+        while (q.step())
+            touched.insert(q.int64(0));
+        db_.exec("DELETE FROM item WHERE id IN (" + idList(chunk) + ")");
+    });
+    refreshFoldersNoTx(db_, touched);
+    tx.commit();
+    return touched;
+}
+
 // ------------------------------------------------------------------ Analyse
 
 SyncResult LibraryDb::syncFolder(const DiscoveredFolder& folder, qint64 stamp, const IdentityFn& identity)

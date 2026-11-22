@@ -19,9 +19,19 @@ int currentVersion(Database& db)
     return v.step() ? v.int32(0) : 0;
 }
 
+// Une migration par version : 1 = schéma initial (001), 2 = doublons (002)…
+QString migrationName(int version)
+{
+    switch (version) {
+    case 1: return QStringLiteral(":/sql/001_initial.sql");
+    case 2: return QStringLiteral(":/sql/002_doublons.sql");
+    default: return {};
+    }
+}
+
 QByteArray loadSql(int version)
 {
-    const QString name = QStringLiteral(":/sql/%1_initial.sql").arg(version, 3, 10, QLatin1Char('0'));
+    const QString name = migrationName(version);
     QFile f(name);
     if (!f.open(QIODevice::ReadOnly))
         throw DbError("Migration introuvable : " + name.toStdString());
@@ -37,11 +47,12 @@ int migrateLibrary(Database& db)
     int version = currentVersion(db);
     if (version > kLibrarySchemaVersion)
         throw DbError("La bibliothèque a été créée par une version plus récente de Picazoo.");
-    if (version == 0) {
+    // Migrations non destructives, dans l'ordre ; chacune met à jour schema_version.
+    while (version < kLibrarySchemaVersion) {
         Transaction tx(db);
-        db.exec(loadSql(1).constData());
+        db.exec(loadSql(version + 1).constData());
         tx.commit();
-        version = 1;
+        ++version;
     }
     return version;
 }

@@ -86,6 +86,10 @@ public:
     // Exécute une tâche sur le thread d'indexation (sérialisée avec les analyses).
     void post(std::function<void()> task);
 
+    // Retire ces éléments de l'index et leurs vignettes, sans toucher au disque (fichiers
+    // mis à la corbeille par la 002). Asynchrone, sur le thread d'indexation.
+    void forgetItems(const QList<ItemId>& ids);
+
     // Réessaie les racines indisponibles (toutes les 30 s, et sur WM_DEVICECHANGE).
     void checkRoots();
     // Vrai si la racine est surveillée en direct (US4).

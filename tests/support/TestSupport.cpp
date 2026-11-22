@@ -11,8 +11,12 @@
 #include <QDirIterator>
 #include <QFile>
 #include <QFileInfo>
+#include <QLinearGradient>
 #include <QPainter>
 #include <QProcess>
+#include <QRandomGenerator>
+
+#include <algorithm>
 
 #include <vector>
 
@@ -213,6 +217,75 @@ QByteArray FixtureFactory::jpeg(const JpegSpec& spec)
     app1.append(char(len & 0xFF));
     app1 += exif;
     return main.left(2) + app1 + main.mid(2);
+}
+
+QImage FixtureFactory::scene(QSize size, quint32 seed, int motion)
+{
+    QRandomGenerator rng(seed);
+    QImage img(size, QImage::Format_RGB32);
+    QPainter p(&img);
+    p.setRenderHint(QPainter::Antialiasing);
+    QLinearGradient bg(0, 0, size.width() * 0.3, size.height());
+    bg.setColorAt(0, QColor::fromHsv(rng.bounded(360), 60 + rng.bounded(120), 90 + rng.bounded(140)));
+    bg.setColorAt(1, QColor::fromHsv(rng.bounded(360), 60 + rng.bounded(120), 60 + rng.bounded(140)));
+    p.fillRect(img.rect(), bg);
+    const double sx = size.width() / 100.0, sy = size.height() / 100.0;
+    for (int i = 0; i < 40; ++i) {
+        const QColor c = QColor::fromHsv(rng.bounded(360), 40 + rng.bounded(215), 40 + rng.bounded(215));
+        double x = rng.bounded(100) * sx, y = rng.bounded(100) * sy;
+        const double w = (4 + rng.bounded(30)) * sx, h = (4 + rng.bounded(30)) * sy;
+        if (i < 6)
+            x += motion * sx; // le « sujet » se déplace
+        p.setPen(QPen(c.darker(150), 1 + rng.bounded(4) * sx / 4));
+        p.setBrush(c);
+        switch (rng.bounded(3)) {
+        case 0: p.drawEllipse(QRectF(x, y, w, h)); break;
+        case 1: p.drawRect(QRectF(x, y, w, h)); break;
+        default: {
+            QPolygonF poly;
+            for (int k = 0; k < 3 + int(rng.bounded(3)); ++k)
+                poly << QPointF(x + rng.bounded(int(w) + 1), y + rng.bounded(int(h) + 1));
+            p.drawPolygon(poly);
+        }
+        }
+    }
+    p.end();
+    // Grain fin, comme un capteur.
+    for (int y = 0; y < img.height(); ++y) {
+        QRgb* line = reinterpret_cast<QRgb*>(img.scanLine(y));
+        for (int x = 0; x < img.width(); ++x) {
+            const int n = int(rng.bounded(17)) - 8;
+            line[x] = qRgb(std::clamp(qRed(line[x]) + n, 0, 255), std::clamp(qGreen(line[x]) + n, 0, 255),
+                           std::clamp(qBlue(line[x]) + n, 0, 255));
+        }
+    }
+    return img;
+}
+
+QByteArray FixtureFactory::jpegOf(const QImage& image, const JpegSpec& spec, int quality)
+{
+    const QByteArray main = JpegDecoder::encode(image, quality);
+    const QByteArray exif = exifBlock(spec);
+    QByteArray app1("\xFF\xE1", 2);
+    const int len = int(exif.size()) + 2;
+    app1.append(char(len >> 8));
+    app1.append(char(len & 0xFF));
+    app1 += exif;
+    return main.left(2) + app1 + main.mid(2);
+}
+
+QString FixtureFactory::writeImage(const QString& path, const QImage& image, const JpegSpec& spec, int quality)
+{
+    return writeBytes(path, jpegOf(image, spec, quality));
+}
+
+QString FixtureFactory::writeImagePng(const QString& path, const QImage& image)
+{
+    QByteArray out;
+    QBuffer b(&out);
+    b.open(QIODevice::WriteOnly);
+    image.save(&b, "PNG");
+    return writeBytes(path, out);
 }
 
 QByteArray FixtureFactory::png(QSize size, QColor color)

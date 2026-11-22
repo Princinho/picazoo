@@ -11,7 +11,8 @@ target_compile_definitions(picazoo_testsupport PUBLIC
 # Une cible et un test CTest par fichier tst_*.cpp
 file(GLOB PICAZOO_TEST_FILES CONFIGURE_DEPENDS
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/tst_*.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/integration/tst_*.cpp")
+    "${CMAKE_CURRENT_SOURCE_DIR}/integration/tst_*.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/accuracy/tst_*.cpp")
 
 # Les DLL de vcpkg et de Qt doivent être trouvées à l'exécution des tests.
 cmake_path(ABSOLUTE_PATH Qt6_DIR NORMALIZE OUTPUT_VARIABLE _qt_cmake_dir)
