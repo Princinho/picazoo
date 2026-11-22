@@ -13,7 +13,7 @@
 
 ## Requirement Completeness
 
-- [x] No [NEEDS CLARIFICATION] markers remain — 4 choix de produit retenus par défaut et listés dans « Questions ouvertes » (vidéos réencodées, démarrage automatique, disques sans corbeille, RAW + JPEG), à confirmer à la relecture
+- [x] No [NEEDS CLARIFICATION] markers remain — 4 choix de produit tranchés avec `/speckit-clarify` le 2026-11-22 (démarrage automatique, vidéos identiques seulement, disques sans corbeille signalés, RAW + JPEG regroupés)
 - [x] Requirements are testable and unambiguous
 - [x] Success criteria are measurable
 - [x] Success criteria are technology-agnostic (no implementation details)

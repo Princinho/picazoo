@@ -8,6 +8,15 @@
 
 **Input**: User description: "Fonctionnalité 002 de la feuille de route Picazoo : détection des doublons de photos et vidéos. Retrouver les doublons exacts (même contenu, par empreinte/hachage) et les quasi-doublons (même image redimensionnée, recompressée, convertie dans un autre format ou légèrement retouchée, par empreinte perceptuelle), avec un niveau de confiance compréhensible. Regrouper les doublons en groupes. Un écran de revue permet de parcourir les groupes, de comparer les copies côte à côte (dimensions, poids, format, date, dossier) et de choisir quelle copie garder, avec une suggestion automatique de la meilleure copie que l'utilisateur valide ou corrige ; ses choix (y compris « ce ne sont pas des doublons ») sont retenus. Suppression sûre : les copies écartées vont à la corbeille du système, avec aperçu avant d'agir, journal et confirmation ; jamais de suppression définitive. Le calcul est incrémental et tourne en arrière-plan : il ne fige pas l'interface et ne sature pas le disque (lectures limitées en débit, à faible priorité, reprise possible après fermeture), il s'appuie sur l'index de la bibliothèque (001) et ne recalcule que les éléments nouveaux ou modifiés."
 
+## Clarifications
+
+### Session 2026-11-22
+
+- Q: Quand l'analyse des doublons doit-elle démarrer ? → A: Automatiquement en arrière-plan après l'indexation, à débit limité, avec pause et désactivation possibles.
+- Q: Faut-il retrouver aussi les vidéos réencodées ou redimensionnées ? → A: Non, seulement les copies de vidéos strictement identiques dans la 002 ; les vidéos réencodées sont reportées à plus tard.
+- Q: Que faire d'une copie située sur un disque sans corbeille ? → A: La signaler seulement (« non supprimable par Picazoo », avec ouverture de son emplacement) ; pas de quarantaine ni d'effacement définitif.
+- Q: Une photo RAW et un JPEG de la même prise de vue peuvent-ils être proposés comme doublons ? → A: Oui, toujours, comme toute autre copie (niveau « Même image »), le RAW étant toujours suggéré comme copie à garder.
+
 ## Contexte
 
 Au fil des années, une bibliothèque de photos se remplit de copies : la même
@@ -157,6 +166,9 @@ photos de la rafale n'y figurent pas.
    cadrage.
 6. **Given** la liste des groupes, **When** l'utilisateur filtre par niveau
    de confiance, **Then** seuls les groupes du niveau choisi sont affichés.
+7. **Given** une photo RAW et le JPEG de la même prise de vue, **When**
+   l'analyse se termine, **Then** ils sont regroupés au niveau « Même image »
+   et le RAW est suggéré comme copie à garder.
 
 ---
 
@@ -278,11 +290,12 @@ copie de chacun reste en place.
 - **Corbeille vidée avant une annulation** : les fichiers concernés sont
   signalés comme définitivement perdus par la corbeille, sans erreur
   bloquante pour les autres.
-- **Photo RAW et son JPEG** (`IMG_0042.CR2` + `IMG_0042.JPG`) : ce sont deux
-  versions complémentaires de la même prise de vue, pas des doublons ; elles
-  ne sont pas proposées comme tels (leur rapprochement relève des images
-  liées, 003). Deux copies identiques d'un même RAW sont, elles, des
-  doublons.
+- **Photo RAW et son JPEG** (`IMG_0042.CR2` + `IMG_0042.JPG`, ou un JPEG
+  exporté rangé ailleurs) : ils sont regroupés comme toute autre copie de la
+  même image, au niveau « Même image », et le RAW est toujours suggéré comme
+  copie à garder, car c'est l'original le plus riche. Mettre le RAW à la
+  corbeille reste possible, mais seulement si l'utilisateur change lui-même
+  la suggestion.
 - **Ordinateur sur batterie** : l'analyse ralentit ou se met en pause pour
   préserver l'autonomie, et reprend sur secteur.
 - **Très grande bibliothèque avec des milliers de groupes** : la liste des
@@ -306,16 +319,18 @@ copie de chacun reste en place.
   d'intervalle), ni des images trop pauvres en détails pour être comparées
   de façon fiable, sauf si elles sont identiques.
 - **FR-004**: Pour les vidéos, le système MUST retrouver les copies
-  identiques (FR-001). Les vidéos réencodées ou redimensionnées ne sont pas
-  retrouvées dans la 002 (voir Questions ouvertes).
+  identiques (FR-001), et seulement celles-là : une vidéo réencodée ou
+  redimensionnée n'est pas proposée comme doublon dans la 002.
 - **FR-005**: Le système MUST attribuer à chaque groupe un niveau de
   confiance exprimé en mots : « Identique » (contenu strictement identique),
   « Même image » (même image, autre taille, format ou compression) ou
   « Très ressemblante » (différences visibles, retouche probable, à
   vérifier). Le détail de la ressemblance MUST pouvoir être consulté.
 - **FR-006**: Le système MUST NOT proposer comme doublons deux chemins qui
-  désignent le même fichier sur le disque (liens physiques), ni une photo RAW
-  et le JPEG qui l'accompagne.
+  désignent le même fichier sur le disque (liens physiques). En revanche, une
+  photo RAW et une photo d'un autre format représentant la même image (par
+  exemple le JPEG produit par l'appareil ou exporté ensuite) MUST être
+  regroupées comme toute autre copie, au niveau « Même image ».
 
 **Groupes**
 
@@ -323,7 +338,8 @@ copie de chacun reste en place.
   groupe ; chaque copie d'un groupe MUST ressembler à la copie proposée à
   garder (pas de chaîne de ressemblance de proche en proche).
 - **FR-008**: Le système MUST proposer dans chaque groupe une copie à garder,
-  selon l'ordre : plus grande résolution, puis moindre compression (poids le
+  selon l'ordre : photo RAW d'abord (toujours préférée à une copie d'un autre
+  format), puis plus grande résolution, puis moindre compression (poids le
   plus élevé à résolution égale), puis présence des informations de prise de
   vue, puis date la plus ancienne ; la raison du choix MUST être affichée.
 - **FR-009**: Le système MUST indiquer pour chaque groupe et pour l'ensemble
@@ -361,7 +377,11 @@ copie de chacun reste en place.
   copie d'un groupe en place.
 - **FR-018**: Le système MUST mettre les fichiers à la corbeille du système
   et MUST NOT jamais les effacer définitivement ; un fichier qui ne peut pas
-  aller à la corbeille MUST être laissé en place et signalé.
+  aller à la corbeille (disque sans corbeille, fichier verrouillé ou en
+  lecture seule) MUST être laissé en place et signalé « non supprimable par
+  Picazoo » dans le récapitulatif, avec la possibilité d'ouvrir son
+  emplacement. Aucun déplacement vers un autre dossier n'est proposé à la
+  place.
 - **FR-019**: Juste avant d'agir, le système MUST vérifier que chaque fichier
   à écarter et la copie gardée de son groupe sont toujours présents et
   inchangés depuis l'analyse ; sinon il MUST laisser le fichier en place,
@@ -408,6 +428,11 @@ copie de chacun reste en place.
 - **FR-032**: Le système MUST NOT lire les fichiers « disponibles uniquement
   en ligne » (ce qui déclencherait leur téléchargement) ; ils sont signalés
   comme non analysés.
+- **FR-033**: L'analyse MUST démarrer d'elle-même, sans action de
+  l'utilisateur, une fois l'indexation et les vignettes visibles de la 001
+  terminées, puis suivre automatiquement les éléments nouveaux ou modifiés ;
+  les utilisateurs MUST pouvoir la désactiver dans les réglages (plus aucune
+  lecture liée aux doublons) et la relancer à la demande.
 
 ### Key Entities
 
@@ -480,7 +505,7 @@ copie de chacun reste en place.
   terminées.
 - L'analyse des doublons démarre automatiquement en arrière-plan après
   l'indexation, peut être mise en pause, et peut être désactivée dans les
-  réglages (voir Questions ouvertes).
+  réglages (FR-033).
 - La comparaison couvre toute la bibliothèque, tous dossiers surveillés
   confondus ; les éléments des dossiers exclus ne sont pas analysés.
 - La seule opération sur les fichiers de la 002 est la mise à la corbeille
@@ -490,30 +515,11 @@ copie de chacun reste en place.
 - Les doublons de vidéos se limitent aux copies identiques ; les vidéos
   réencodées ou redimensionnées sont hors périmètre de la 002.
 - Les photos RAW sont comparées par leur aperçu intégré, comme dans la 001 ;
-  un RAW et son JPEG compagnon ne sont pas des doublons.
+  un RAW et son JPEG compagnon sont des doublons au sens de la 002 (FR-006),
+  ce qui n'empêche pas la 003 de les rapprocher aussi par leur nom.
 - L'interface est en français ; le journal des opérations est conservé dans
   le stockage de Picazoo et n'est jamais écrit dans les dossiers de
   l'utilisateur.
 - Ordinateur visé : un portable courant, potentiellement peu puissant et
   sensible à la chauffe ; les seuils de SC-003 et SC-005 sont mesurés dans
   ces conditions.
-
-## Questions ouvertes
-
-*À trancher à la relecture (ou avec `/speckit-clarify`) ; une réponse par
-défaut est retenue dans la spec en attendant.*
-
-1. **Vidéos réencodées** : faut-il retrouver aussi la même vidéo dans une
-   autre résolution ou un autre encodage (par exemple la version envoyée par
-   une messagerie) ? *Par défaut : non, seulement les copies identiques
-   (FR-004).*
-2. **Démarrage de l'analyse** : automatique en arrière-plan après
-   l'indexation, ou seulement à la demande (« Rechercher les doublons ») ?
-   *Par défaut : automatique, avec pause et désactivation possibles.*
-3. **Disques sans corbeille** (partage réseau, clé USB) : se contenter de
-   signaler ces copies, ou proposer de les déplacer dans un dossier de
-   quarantaine choisi par l'utilisateur ? *Par défaut : signaler seulement,
-   jamais d'effacement définitif (FR-018).*
-4. **RAW + JPEG** : un JPEG tiré d'un RAW (même prise de vue) ne doit-il
-   jamais être proposé comme doublon, ou seulement quand les deux portent le
-   même nom dans le même dossier ? *Par défaut : jamais (FR-006).*
