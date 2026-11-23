@@ -48,15 +48,11 @@ sensible à la chauffe.
 .\build\windows-release\picazoo-bench.exe --items 20000 --duplicates
 ```
 
-```powershell
-.\build\windows-release\picazoo-bench.exe --items 5000 --duplicates --concurrent-copy
-```
-
 | Mesure | Seuil | Critère |
 |---|---|---|
 | Analyse complète des doublons, bibliothèque déjà indexée (20 000) | < 30 min | SC-003 |
 | Défilement et ouverture d'une photo pendant l'analyse | fluide, < 1 s | SC-004 |
-| Ralentissement d'une copie de fichier concurrente sur le même disque | ≤ 20 % | SC-005 |
+| Ralentissement d'une copie de fichier concurrente sur le même disque (mesure manuelle : copier un gros fichier avec l'Explorateur pendant l'analyse, puis sans) | ≤ 20 % | SC-005 |
 | Apparition du groupe d'une copie ajoutée | < 1 min | SC-006 |
 | Relance après interruption : éléments relus | 0 | SC-007 |
 
@@ -124,3 +120,11 @@ distinctes. Ajouter ce dossier aux dossiers surveillés.
     identiques ; seuls diffèrent la copie modifiée à la main à l'étape 7
     (et ce que Picazoo aurait mis à la corbeille après l'annulation, s'il y
     en a). Aucun fichier n'a été créé par Picazoo.
+
+## Captures pour le développement
+
+`PICAZOO_DATA_DIR` (bibliothèque séparée), `PICAZOO_DEV_SCREEN=duplicates|summary|log`
+(ouvre cet écran au démarrage), `PICAZOO_SCREENSHOT=<fichier.png>;<délai ms>` (capture
+puis quitte) et `PICAZOO_LOG_FILE=<fichier>` (messages de Qt et du QML) permettent de
+vérifier l'interface sans manipulation. `picazoo-testdata --duplicates <dossier>
+--library <données>` prépare une bibliothèque déjà analysée.

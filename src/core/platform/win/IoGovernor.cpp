@@ -71,7 +71,8 @@ void IoGovernor::recordRead(qint64 bytes, qint64 latencyUs)
     const double baseline = baselineLocked();
     const qint64 now = clock_();
     const bool enoughSamples = samples_.size() >= 8;
-    const bool congested = enoughSamples && baseline > 0 && perMb > cfg_.congestionFactor * baseline;
+    const bool congested = enoughSamples && baseline > 0 && perMb > cfg_.congestionFactor * baseline &&
+                           perMb > cfg_.congestionFloorUs;
 
     samples_.push_back(perMb);
     while (int(samples_.size()) > cfg_.baselineWindow)

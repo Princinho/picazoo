@@ -72,8 +72,8 @@ private slots:
             now += w + 1000; // la lecture prend 1 ms
             g.recordRead(1024 * 1024, 1000);
         }
-        // À 10 Mo/s (+10 %/s au calme), 100 Mo demandent plusieurs secondes.
-        QVERIFY2(now > 4'000'000, qPrintable(QString::number(now)));
+        // À 10 Mo/s (+25 %/s au calme, plafond 32 Mo/s), 100 Mo demandent plusieurs secondes.
+        QVERIFY2(now > 3'000'000, qPrintable(QString::number(now)));
     }
 
     void governorBacksOffOnCongestion()

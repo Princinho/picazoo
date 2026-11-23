@@ -364,17 +364,27 @@ bool DuplicateEngine::contentStep()
         ItemId id;
         int version;
         QString path;
+        QByteArray knownHash; // empreinte d'un autre chemin vers le même fichier (lien physique)
+        QByteArray fileKey;   // volume + identifiant NTFS, vide si inconnu
     };
     std::vector<Job> jobs;
     {
         std::lock_guard lock(db_->mutex());
-        auto q = db_->prepare("SELECT f.item_id, f.version, fo.path, i.file_name FROM item_fingerprint f"
-                              " JOIN item i ON i.id = f.item_id JOIN folder fo ON fo.id = i.folder_id"
-                              " WHERE f.content_state = 'pending' AND f.version = i.version"
-                              " ORDER BY i.size_bytes LIMIT 16");
+        auto q = db_->prepare(
+            "SELECT f.item_id, f.version, fo.path, i.file_name,"
+            " (SELECT f2.content_hash FROM item i2 JOIN item_fingerprint f2 ON f2.item_id = i2.id"
+            "  WHERE i.file_id IS NOT NULL AND i2.file_id = i.file_id AND i2.volume_serial IS i.volume_serial"
+            "  AND i2.size_bytes = i.size_bytes AND i2.mtime = i.mtime AND f2.content_state = 'done'"
+            "  AND f2.version = i2.version LIMIT 1), i.volume_serial, i.file_id"
+            " FROM item_fingerprint f JOIN item i ON i.id = f.item_id JOIN folder fo ON fo.id = i.folder_id"
+            " WHERE f.content_state = 'pending' AND f.version = i.version"
+            " ORDER BY i.size_bytes LIMIT 16");
         while (q.step())
-            jobs.push_back(Job{q.int64(0), q.int32(1), platform::joinPath(q.text(2), q.text(3))});
+            jobs.push_back(Job{q.int64(0), q.int32(1), platform::joinPath(q.text(2), q.text(3)),
+                               q.isNull(4) ? QByteArray() : q.blob(4),
+                               q.isNull(6) ? QByteArray() : QByteArray::number(q.int64(5)) + ':' + q.blob(6)});
     }
+    QHash<QByteArray, QByteArray> hashedInBatch; // liens physiques d'un même lot : une seule lecture
     bool did = false;
     for (const Job& job : jobs) {
         if (!gatesOpen(nullptr))
@@ -387,10 +397,19 @@ bool DuplicateEngine::contentStep()
             progress_.total = std::max(pendingTotal_, doneCount_ + 1);
             progressDirty_ = true;
         }
-        platform::ReadControl ctl;
-        ctl.governor = governor_.get();
-        ctl.cancelled = [this] { return !gatesOpen(nullptr); };
-        const platform::ContentHash r = platform::hashFileContent(job.path, ctl);
+        platform::ContentHash r;
+        const QByteArray known = !job.knownHash.isEmpty() ? job.knownHash : hashedInBatch.value(job.fileKey);
+        if (!known.isEmpty() && !job.fileKey.isEmpty()) {
+            r.status = platform::ReadStatus::Ok; // même fichier : rien à relire
+            r.hash = known;
+        } else {
+            platform::ReadControl ctl;
+            ctl.governor = governor_.get();
+            ctl.cancelled = [this] { return !gatesOpen(nullptr); };
+            r = platform::hashFileContent(job.path, ctl);
+            if (r.status == platform::ReadStatus::Ok && !job.fileKey.isEmpty())
+                hashedInBatch.insert(job.fileKey, r.hash);
+        }
         if (r.status == platform::ReadStatus::Cancelled)
             break;
         const char* state = r.status == platform::ReadStatus::Ok           ? "done"
@@ -682,11 +701,13 @@ void DuplicateEngine::regroup()
     }
     QHash<ItemId, CopyFacts> facts;
     QHash<ItemId, qint64> sizes;
+    QHash<QByteArray, ItemId> fileRep;    // fichier physique -> plus petit identifiant
+    QHash<ItemId, QByteArray> fileKeyOf;
     const QList<ItemId> all(involved.begin(), involved.end());
     for (qsizetype off = 0; off < all.size(); off += 500) {
         const QList<ItemId> chunk = all.mid(off, 500);
         const QString sql = QStringLiteral("SELECT i.id, i.kind, i.width, i.height, i.size_bytes, i.taken_at,"
-                                           " i.sort_date, fo.path, i.file_name FROM item i"
+                                           " i.sort_date, fo.path, i.file_name, i.volume_serial, i.file_id FROM item i"
                                            " JOIN folder fo ON fo.id = i.folder_id WHERE i.id IN (") +
                             idList(chunk) + u')';
         auto q = db_->prepare(sql.toUtf8().constData());
@@ -701,8 +722,24 @@ void DuplicateEngine::regroup()
             f.path = platform::joinPath(q.text(7), q.text(8));
             facts.insert(f.id, f);
             sizes.insert(f.id, f.sizeBytes);
+            if (!q.isNull(10)) {
+                const QByteArray fileKey = QByteArray::number(q.int64(9)) + ':' + q.blob(10);
+                auto it = fileRep.find(fileKey);
+                if (it == fileRep.end())
+                    fileRep.insert(fileKey, f.id);
+                else if (f.id < *it)
+                    *it = f.id;
+                fileKeyOf.insert(f.id, fileKey);
+            }
         }
     }
+    // Liens physiques (FR-006) : un seul représentant par fichier, les autres chemins sont ignorés.
+    auto sameFileAlias = [&](ItemId id) {
+        const auto k = fileKeyOf.constFind(id);
+        return k != fileKeyOf.constEnd() && fileRep.value(*k) != id;
+    };
+    for (auto& s : exactSets)
+        s.erase(std::remove_if(s.begin(), s.end(), sameFileAlias), s.end());
     // Éléments disparus de l'index : on les oublie.
     for (auto& s : exactSets)
         s.erase(std::remove_if(s.begin(), s.end(), [&](ItemId id) { return !facts.contains(id); }), s.end());
@@ -712,6 +749,10 @@ void DuplicateEngine::regroup()
     for (auto it = edges_.begin(); it != edges_.end();) {
         if (!facts.contains(it->a) || !facts.contains(it->b)) {
             it = edges_.erase(it);
+            continue;
+        }
+        if (sameFileAlias(it->a) || sameFileAlias(it->b)) {
+            ++it; // gardée en cache : le représentant peut changer
             continue;
         }
         edges << *it;

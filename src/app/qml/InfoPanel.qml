@@ -6,6 +6,8 @@ import QtQuick.Layouts
 Rectangle {
     id: root
     property var info: ({})
+    // Doublons (002) : nombre d'autres copies du même groupe.
+    readonly property int duplicateCount: dups && root.info.id ? dups.duplicateCount(root.info.id) : 0
     color: Theme.viewerPanel
 
     Rectangle { anchors.left: parent.left; width: 1; height: parent.height; color: Theme.viewerLine }
@@ -47,6 +49,28 @@ Rectangle {
         Field { label: "Poids"; value: root.info.size || "" }
         Field { label: "Appareil"; value: root.info.camera || "" }
         Field { label: "Emplacement"; value: root.info.path || "" }
+        RowLayout {
+            visible: root.duplicateCount > 0
+            Layout.fillWidth: true
+            spacing: 10
+            Label {
+                Layout.fillWidth: true
+                text: root.duplicateCount + (root.duplicateCount > 1 ? " doublons" : " doublon")
+                color: Theme.amberText
+            }
+            Button {
+                id: dupBtn
+                focusPolicy: Qt.NoFocus
+                implicitHeight: 32
+                onClicked: dups.showGroup(dups.groupOf(root.info.id))
+                contentItem: Label { text: "Voir"; color: Theme.text; verticalAlignment: Text.AlignVCenter }
+                background: Rectangle {
+                    radius: 8
+                    color: dupBtn.hovered ? Theme.hover : "#1A1D23"
+                    border.color: Theme.lineStrong
+                }
+            }
+        }
         Button {
             id: revealBtn
             focusPolicy: Qt.NoFocus

@@ -18,6 +18,8 @@ Spec Kit (`specify` → `clarify` → `plan` → `tasks` → `implement`).
 | 003 | **Images liées** | Repérer les images dont les noms partagent une même racine (`vacances_bali_001`, `vacances_bali_002`…), afficher une estimation de confiance, et laisser l'utilisateur valider ou corriger des « groupes ». | 001 |
 | 004 | **Réorganisation de la bibliothèque** | Copier ou déplacer toute la bibliothèque vers un dossier choisi, avec un sous-dossier par groupe d'images liées ; aperçu avant d'agir, journal et annulation. | 001, 003 (002 recommandé avant) |
 
+État au 2026-11-23 : 001 livrée ; 002 implémentée (branche `claude/002-detection-doublons-b93eeb`, en revue).
+
 ## Pistes pour après (non engagées)
 
 - Étoiles, mots-clés et albums virtuels (sans toucher aux fichiers).

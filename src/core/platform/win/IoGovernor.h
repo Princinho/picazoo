@@ -19,8 +19,9 @@ public:
         double initialBytesPerSec = 16.0 * 1024 * 1024;
         double minBytesPerSec = 2.0 * 1024 * 1024;
         double maxBytesPerSec = 32.0 * 1024 * 1024;
-        double congestionFactor = 3.0;   // latence > 3 × référence -> encombrement
-        double recoveryPerSec = 0.10;    // +10 % par seconde calme
+        double congestionFactor = 3.0;   // latence > 3 × référence -> encombrement…
+        double congestionFloorUs = 10000; // …et > 10 ms par Mo (ignore les à-coups d'un SSD)
+        double recoveryPerSec = 0.25;    // +25 % par seconde calme
         qint64 minCutIntervalUs = 500000; // pas deux divisions en moins de 0,5 s
         int baselineWindow = 64;          // échantillons pour la latence de référence
     };

@@ -158,7 +158,8 @@ première tâche technique.
      entre 2 et 32 Mo/s. Le régulateur mesure le temps de chaque bloc et
      garde une latence de référence (médiane glissante au repos) ; si la
      latence dépasse 3 fois la référence (autre application sur le disque),
-     le débit est divisé par deux, puis il remonte de 10 % par seconde
+     et au moins 10 ms par Mo (les à-coups d'un SSD ne comptent pas), le débit
+     est divisé par deux, puis il remonte de 25 % par seconde
      calme (FR-027, SC-005).
   4. **Un seul gros travail à la fois** : l'étage de lecture de la 002 ne
      tourne que si l'indexeur de la 001 est inactif (`Library::indexerIdle()`)
