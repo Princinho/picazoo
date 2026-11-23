@@ -82,9 +82,9 @@ fenêtre et dans le champ « Commentaires » des propriétés du fichier.
 ### 1. Préparer le dépôt
 
 - **Licence** : SignPath Foundation exige une licence open source approuvée par l'OSI
-  (sans double licence commerciale), présente dans le dépôt. Le dépôt n'a pas encore de
-  fichier `LICENSE`. À choisir et à ajouter avant la candidature. La GPL-3.0 est
-  compatible avec les composants LGPL utilisés (Qt, libheif, libde265, LibRaw).
+  (sans double licence commerciale), présente dans le dépôt. C'est fait : Picazoo est
+  sous GPL-3.0 ([LICENSE](../LICENSE)), compatible avec les composants LGPL utilisés
+  (Qt, libheif, libde265, LibRaw).
 - **Authentification à plusieurs facteurs** sur votre compte GitHub (obligatoire pour
   chaque membre de l'équipe, sur GitHub comme sur SignPath).
 - **Fusionner cette branche** sur `main` : la section « Politique de signature du
@@ -113,7 +113,7 @@ Formulaire : <https://signpath.org/apply>. À fournir notamment :
 - la page des versions : `https://github.com/Princinho/picazoo/releases` ;
 - le lien vers la politique de signature :
   `https://github.com/Princinho/picazoo#politique-de-signature-du-code-code-signing-policy` ;
-- la licence choisie ;
+- la licence : GPL-3.0 ;
 - le système de compilation : GitHub Actions, sur des machines hébergées par GitHub
   (`windows-latest`).
 

@@ -161,6 +161,11 @@ Banc d'essai (photos générées dans un dossier temporaire, jamais vos dossiers
 Les tests qui ont besoin de vrais fichiers RAW, HEIC ou vidéo les cherchent dans
 [tests/fixtures](tests/fixtures/README.md) et sont ignorés s'ils manquent.
 
+## Licence
+
+Picazoo est un logiciel libre, distribué sous la licence publique générale GNU,
+version 3 (GPL-3.0) : voir [LICENSE](LICENSE).
+
 ## Licences des composants
 
 Qt (LGPLv3, liaison dynamique), libheif et libde265 (LGPLv3), LibRaw (LGPL 2.1 /
