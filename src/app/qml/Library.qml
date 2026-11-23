@@ -23,7 +23,17 @@ FocusScope {
         grid.revealItem(id)
         grid.forceActiveFocus()
     }
-    function openTrashSummary() { duplicatesView.openSummary(false) }
+    function openTrashSummary() { duplicatesView.openSummary() }
+    // Développement (PICAZOO_DEV_SCREEN) : panneau « Dossiers », « Écartés », sélection.
+    function devDuplicates(name) {
+        root.showGroup(0)
+        if (name === "dossiers")
+            duplicatesView.panelOpen = true
+        else if (name === "aside")
+            duplicatesView.asideMode = true
+        else if (name === "selection")
+            dups.groups.selectAll()
+    }
     function showGroup(groupId) {
         root.showDuplicates = true
         duplicatesView.focusGroup(groupId)
@@ -68,6 +78,10 @@ FocusScope {
                     grid.forceActiveFocus()
                 }
                 onDuplicatesClicked: root.showGroup(0)
+                onShowDuplicatesOf: path => {
+                    dups.showFolder(path)
+                    root.showGroup(0)
+                }
             }
 
             Item {

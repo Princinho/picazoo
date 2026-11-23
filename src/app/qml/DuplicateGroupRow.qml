@@ -14,19 +14,23 @@ Rectangle {
     required property string reclaimableText
     required property int copyCount
     required property var copies
+    property bool selected: false     // 006 : groupe sélectionné
+    property string flagText: ""      // 006 : signalement (règle, retouche probable)
+    property bool embedded: false     // 006 : carte dépliée sous une ligne compacte (sélection portée par la ligne)
 
     property bool current: false
     property int currentCopy: 0
     signal openItem(var id)
     signal compare(var groupId, var a, var b)
     signal activated()
+    signal toggleSelect(int modifiers)
 
     readonly property color badgeBg: level === "identical" ? Theme.okBg : (level === "same_image" ? Theme.accentBg : Theme.amberBg)
     readonly property color badgeText: level === "identical" ? Theme.okText : (level === "same_image" ? Theme.accentText : Theme.amberText)
 
     function keeperIndex() {
         for (let i = 0; i < copies.length; ++i)
-            if (copies[i].isCenter)
+            if (copies[i].isSuggested)
                 return i
         return 0
     }
@@ -52,11 +56,11 @@ Rectangle {
         }
     }
 
-    width: ListView.view ? ListView.view.width : 800
+    width: ListView.view ? ListView.view.width : (parent ? parent.width : 800)
     height: 410
     radius: Theme.radius
     color: Theme.panel
-    border.color: current ? Theme.accent : Theme.line
+    border.color: current ? Theme.accent : (selected ? Theme.accentButton : Theme.line)
     border.width: current ? 2 : 1
 
     ToolTip {
@@ -79,6 +83,16 @@ Rectangle {
         RowLayout {
             Layout.fillWidth: true
             spacing: 12
+            PzCheckBox {
+                visible: !row.embedded
+                checked: row.selected
+                focusPolicy: Qt.NoFocus
+                Accessible.name: "Sélectionner ce groupe"
+                onToggled: {
+                    row.toggleSelect(0)
+                    checked = Qt.binding(() => row.selected)
+                }
+            }
             Rectangle {
                 Layout.preferredHeight: 26
                 Layout.preferredWidth: badge.implicitWidth + 20
@@ -95,6 +109,13 @@ Rectangle {
             Label {
                 text: row.copyCount + " copies · " + row.reclaimableText + " récupérables"
                 color: Theme.text2
+            }
+            Label {
+                visible: row.flagText !== "" && row.level !== "similar"
+                text: "⚠  " + row.flagText
+                color: Theme.amberText
+                elide: Text.ElideRight
+                Layout.fillWidth: true
             }
             Item { Layout.fillWidth: true }
             Button {
@@ -185,7 +206,7 @@ Rectangle {
                         }
                     }
                     Label {
-                        visible: card.modelData.isCenter
+                        visible: card.modelData.isSuggested
                         Layout.fillWidth: true
                         text: "Suggérée : " + row.reasonLabel
                         color: Theme.accentText
@@ -193,13 +214,13 @@ Rectangle {
                         elide: Text.ElideRight
                     }
                     Label {
-                        visible: !card.modelData.isCenter && card.modelData.levelLabel !== ""
+                        visible: !card.modelData.isSuggested && card.modelData.levelLabel !== ""
                         Layout.fillWidth: true
                         text: card.modelData.levelLabel
                         color: Theme.text3
                         font.pixelSize: 12
                     }
-                    CheckBox {
+                    PzCheckBox {
                         id: trashBox
                         text: "À la corbeille"
                         checked: !card.modelData.keep

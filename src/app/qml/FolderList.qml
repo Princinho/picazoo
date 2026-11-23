@@ -10,6 +10,7 @@ Rectangle {
     property bool duplicatesActive: false
     signal folderClicked(var id)
     signal duplicatesClicked()
+    signal showDuplicatesOf(string path) // 006 : « Voir les doublons de ce dossier »
 
     onCurrentFolderIdChanged: {
         const row = folderModel.rowOfFolder(currentFolderId)
@@ -230,7 +231,13 @@ Rectangle {
                     hoverEnabled: true
                     enabled: row.rowKind !== "year"
                     cursorShape: Qt.PointingHandCursor
-                    onClicked: {
+                    acceptedButtons: Qt.LeftButton | Qt.RightButton
+                    onClicked: mouse => {
+                        if (mouse.button === Qt.RightButton) {
+                            if (row.path !== "")
+                                folderMenu.popup()
+                            return
+                        }
                         if (row.rowKind === "folder")
                             root.folderClicked(row.folderId)
                         else
@@ -239,6 +246,15 @@ Rectangle {
                     ToolTip.visible: containsMouse && row.path !== ""
                     ToolTip.delay: 800
                     ToolTip.text: row.path
+                }
+
+                Menu {
+                    id: folderMenu
+                    Action {
+                        text: "Voir les doublons de ce dossier"
+                        enabled: dups.groupCount > 0
+                        onTriggered: root.showDuplicatesOf(row.path)
+                    }
                 }
             }
         }

@@ -132,6 +132,12 @@ Popup {
                     text: "Annuler cette opération"
                     onClicked: trash.undo(root.selectedId)
                 }
+                // 006 (FR-019) : arrêt entre deux fichiers ; ce qui est fait reste annulable.
+                Button {
+                    visible: trash.busy
+                    text: "■  Arrêter l'opération en cours (" + trash.progressText + ")"
+                    onClicked: trash.stop()
+                }
             }
         }
     }
