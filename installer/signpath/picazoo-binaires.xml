@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Configuration d'artefact SignPath « picazoo-binaires » (à copier dans l'interface de
+  SignPath : projet Picazoo > Artifact Configurations, slug « picazoo-binaires »).
+
+  Artefact reçu : le zip créé par actions/upload-artifact dans .github/workflows/build.yml
+  (étape « Binaires à signer »), qui contient uniquement nos deux exécutables, à la racine :
+    picazoo.exe
+    picazoo-viewer.exe
+
+  Picazoo ne produit pas de DLL à lui (picazoo_core est une bibliothèque statique). Les DLL
+  de Qt et des dépendances vcpkg ne sont pas envoyées : les conditions de SignPath Foundation
+  interdisent de signer avec notre certificat des binaires d'autres projets (« Sign your own
+  binaries only »). Elles sont livrées telles quelles (voir docs/signature.md).
+
+  Le nom et la version du produit (ressource VERSIONINFO, src/core/platform/win/
+  picazoo_versioninfo.rc.in) sont vérifiés avant la signature, comme l'exige SignPath
+  Foundation. Le paramètre « version » est la version numérique a.b.c.d fixée par la CI.
+-->
+<artifact-configuration xmlns="http://signpath.io/artifact-configuration/v1"
+                        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                        xsi:schemaLocation="http://signpath.io/artifact-configuration/v1 https://app.signpath.io/Web/artifact-configuration/v1.xsd">
+  <parameters>
+    <parameter name="version" required="true" />
+  </parameters>
+  <zip-file>
+    <pe-file-set product-name="Picazoo" product-version="${version}" file-version="${version}">
+      <include path="picazoo.exe" />
+      <include path="picazoo-viewer.exe" />
+      <for-each>
+        <authenticode-sign description="Picazoo" description-url="https://github.com/Princinho/picazoo" />
+      </for-each>
+    </pe-file-set>
+  </zip-file>
+</artifact-configuration>

@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Configuration d'artefact SignPath « picazoo-installateur » (à copier dans l'interface de
+  SignPath : projet Picazoo > Artifact Configurations, slug « picazoo-installateur »).
+
+  Artefact reçu : le zip créé par actions/upload-artifact dans .github/workflows/build.yml
+  (étape « Installateur à signer »), qui contient uniquement l'installateur Inno Setup :
+    Picazoo-<version>-win64-setup.exe
+
+  L'installateur est fabriqué à partir de picazoo.exe et picazoo-viewer.exe déjà signés
+  (configuration « picazoo-binaires »). Son nom et sa version de produit viennent des
+  directives VersionInfo* de installer/picazoo.iss ; le paramètre « version » est la
+  version numérique a.b.c.d fixée par la CI.
+-->
+<artifact-configuration xmlns="http://signpath.io/artifact-configuration/v1"
+                        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                        xsi:schemaLocation="http://signpath.io/artifact-configuration/v1 https://app.signpath.io/Web/artifact-configuration/v1.xsd">
+  <parameters>
+    <parameter name="version" required="true" />
+  </parameters>
+  <zip-file>
+    <pe-file path="Picazoo-*-win64-setup.exe" product-name="Picazoo" product-version="${version}" file-version="${version}">
+      <authenticode-sign description="Installateur de Picazoo" description-url="https://github.com/Princinho/picazoo" />
+    </pe-file>
+  </zip-file>
+</artifact-configuration>

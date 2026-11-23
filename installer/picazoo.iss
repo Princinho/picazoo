@@ -7,6 +7,11 @@
 #ifndef AppVersion
   #define AppVersion "0.1.0-dev"
 #endif
+; Version numérique a.b.c.d de l'installateur, contrôlée par SignPath avant la signature
+; (installer/signpath/picazoo-installateur.xml) ; la CI la passe avec /DNumericVersion=…
+#ifndef NumericVersion
+  #define NumericVersion "0.1.0.0"
+#endif
 #ifndef SourceDir
   #define SourceDir "..\dist\picazoo"
 #endif
@@ -21,6 +26,15 @@ AppVersion={#AppVersion}
 AppVerName=Picazoo {#AppVersion}
 AppPublisher=Picazoo
 AppPublisherURL=https://github.com/Princinho/picazoo
+; Ressource de version de l'installateur (Propriétés > Détails ; contrôlée à la signature).
+VersionInfoVersion={#NumericVersion}
+VersionInfoTextVersion={#NumericVersion}
+VersionInfoProductVersion={#NumericVersion}
+VersionInfoProductTextVersion={#NumericVersion}
+VersionInfoProductName=Picazoo
+VersionInfoCompany=Picazoo
+VersionInfoDescription=Installateur de Picazoo
+VersionInfoCopyright=Les auteurs de Picazoo
 DefaultDirName={autopf}\Picazoo
 DefaultGroupName=Picazoo
 DisableProgramGroupPage=yes

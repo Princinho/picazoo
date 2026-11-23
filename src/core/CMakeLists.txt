@@ -19,6 +19,20 @@ set(PICAZOO_VERSION "${PROJECT_VERSION}-dev" CACHE STRING "Version affichée de 
 set_source_files_properties("${CMAKE_CURRENT_SOURCE_DIR}/library/Version.cpp"
     PROPERTIES COMPILE_DEFINITIONS "PICAZOO_VERSION_STRING=\"${PICAZOO_VERSION}\"")
 
+# Ressource de version Windows (VERSIONINFO) de picazoo.exe et picazoo-viewer.exe : nom et
+# version du produit, contrôlés par SignPath avant la signature (docs/signature.md).
+# Version numérique a.b.c.d ; la CI la fixe (ex. 0.2.0.0 pour un tag, 0.1.0.<n° d'exécution>
+# pour main) : -DPICAZOO_VERSION_NUMERIC=0.2.0.0
+set(PICAZOO_VERSION_NUMERIC "${PROJECT_VERSION}.0" CACHE STRING "Version numérique a.b.c.d des exécutables")
+if(NOT PICAZOO_VERSION_NUMERIC MATCHES "^[0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+$")
+    message(FATAL_ERROR "PICAZOO_VERSION_NUMERIC doit être de la forme a.b.c.d (reçu : ${PICAZOO_VERSION_NUMERIC})")
+endif()
+string(REPLACE "." "," PICAZOO_VERSION_COMMAS "${PICAZOO_VERSION_NUMERIC}")
+configure_file("${CMAKE_CURRENT_SOURCE_DIR}/platform/win/picazoo_versioninfo.rc.in"
+    "${CMAKE_CURRENT_BINARY_DIR}/generated/picazoo_versioninfo.rc" @ONLY)
+# Les .rc des exécutables l'incluent (#include "picazoo_versioninfo.rc").
+target_include_directories(picazoo_core PUBLIC "${CMAKE_CURRENT_BINARY_DIR}/generated")
+
 if(TARGET libheif::heif)
     set(PICAZOO_HEIF_TARGET libheif::heif)
 else()

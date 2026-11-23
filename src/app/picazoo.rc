@@ -1,3 +1,8 @@
 // Icône de l'exécutable (Explorateur, barre des tâches). Qt la reprend aussi pour les
 // fenêtres : la ressource doit s'appeler IDI_ICON1. Source : assets/icons (make-icons).
 IDI_ICON1 ICON "../../assets/icons/picazoo.ico"
+
+// Nom et version du produit (Propriétés > Détails ; contrôlés à la signature).
+#define PICAZOO_FILE_DESCRIPTION "Picazoo"
+#define PICAZOO_ORIGINAL_FILENAME "picazoo.exe"
+#include "picazoo_versioninfo.rc"
