@@ -49,6 +49,29 @@ complémentaires » puis « Exécuter quand même ».
 - Visionneuse : ajustement, zoom, déplacement, plein écran, informations,
   précédent / suivant d'un dossier à l'autre, lecture des vidéos.
 
+## Fonctionnalité 005 — visionneuse autonome
+
+Comme la Visionneuse de photos Picasa : `picazoo-viewer.exe`, installé à côté
+de `picazoo.exe`, ouvre une photo double-cliquée dans l'Explorateur dans un
+voile semi-transparent posé sur le bureau, sans ouvrir la bibliothèque.
+
+- Parcours des images du dossier dans l'ordre de la fenêtre de l'Explorateur
+  (ordre naturel des noms à défaut), en boucle ; transitions animées.
+- Zoom à la molette centré sur le curseur, déplacement, double-clic
+  ajuster ⇄ 100 %, voile opaque avec F11, informations (I), bande des voisines.
+- « Ouvrir dans Picazoo » montre la photo dans la bibliothèque, ou propose
+  d'ajouter son dossier.
+- **Rien n'est imposé** : l'installateur inscrit Picazoo dans « Ouvrir avec »
+  sans changer les applications par défaut ; la visionneuse propose une fois de
+  vous emmener au réglage de Windows, où c'est vous qui choisissez. Avec la
+  version portable, l'inscription se fait à la main :
+
+```powershell
+.\picazoo\bin\picazoo-viewer.exe --register
+```
+
+  et se retire avec `--unregister`.
+
 ## Prérequis
 
 - Windows 10 ou 11, 64 bits.

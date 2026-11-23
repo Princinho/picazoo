@@ -17,6 +17,12 @@ FocusScope {
         if (!root.showDuplicates)
             grid.revealItem(id)
     }
+    // « Ouvrir dans Picazoo » (005) : revient à la grille depuis l'écran « Doublons ».
+    function showItemInGrid(id) {
+        root.showDuplicates = false
+        grid.revealItem(id)
+        grid.forceActiveFocus()
+    }
     function openTrashSummary() { duplicatesView.openSummary(false) }
     function showGroup(groupId) {
         root.showDuplicates = true

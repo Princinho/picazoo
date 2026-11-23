@@ -37,4 +37,5 @@ target_link_libraries(picazoo_core
         unofficial::sqlite3::sqlite3
         xxHash::xxhash
         TinyEXIF::TinyEXIF
-        shell32 ole32 shlwapi)
+        Qt6::Network
+        shell32 ole32 oleaut32 shlwapi uuid)

@@ -57,7 +57,16 @@ Name: "{autodesktop}\Picazoo"; Filename: "{app}\bin\picazoo.exe"; Tasks: desktop
 [Run]
 ; Bibliothèques d'exécution Visual C++ (déjà présentes sur la plupart des PC).
 Filename: "{tmp}\vc_redist.x64.exe"; Parameters: "/install /quiet /norestart"; StatusMsg: "Installation des bibliothèques Visual C++…"; Flags: waituntilterminated skipifdoesntexist; Check: IsAdminInstallMode
+; Visionneuse autonome (005) : Picazoo apparaît dans « Ouvrir avec » et dans les
+; applications par défaut de Windows, sans le devenir : c'est l'utilisateur qui choisit.
+Filename: "{app}\bin\picazoo-viewer.exe"; Parameters: "--register"; StatusMsg: "Inscription de la visionneuse auprès de Windows…"; Flags: runhidden waituntilterminated; Check: not IsAdminInstallMode
+Filename: "{app}\bin\picazoo-viewer.exe"; Parameters: "--register --machine"; StatusMsg: "Inscription de la visionneuse auprès de Windows…"; Flags: runhidden waituntilterminated; Check: IsAdminInstallMode
 Filename: "{app}\bin\picazoo.exe"; Description: "{cm:LaunchProgram,Picazoo}"; Flags: nowait postinstall skipifsilent
+
+[UninstallRun]
+; Retire exactement ce que --register a écrit (contracts/storage-and-registry.md de la 005).
+Filename: "{app}\bin\picazoo-viewer.exe"; Parameters: "--unregister"; Flags: runhidden waituntilterminated; RunOnceId: "PicazooViewerUnregisterUser"; Check: not IsAdminInstallMode
+Filename: "{app}\bin\picazoo-viewer.exe"; Parameters: "--unregister --machine"; Flags: runhidden waituntilterminated; RunOnceId: "PicazooViewerUnregisterMachine"; Check: IsAdminInstallMode
 
 ; Les données de Picazoo (%LOCALAPPDATA%\Picazoo) sont conservées à la désinstallation :
 ; ce ne sont qu'un index et des vignettes, reconstruits au besoin.
