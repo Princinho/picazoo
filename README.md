@@ -32,9 +32,13 @@ Chaque version existe en deux formats, pour Windows 10 et 11 (64 bits) :
   [bibliothèques Visual C++](https://aka.ms/vs/17/release/vc_redist.x64.exe)
   (l'installateur s'en charge quand il est lancé pour tous les utilisateurs).
 
-Les exécutables ne sont pas signés : Windows SmartScreen peut afficher
-« Windows a protégé votre ordinateur ». Cliquer sur « Informations
-complémentaires » puis « Exécuter quand même ».
+La signature des versions par SignPath Foundation est en cours de mise en place
+(voir la [politique de signature du code](#politique-de-signature-du-code-code-signing-policy)).
+Tant qu'une version n'est pas signée, Windows SmartScreen peut afficher
+« Windows a protégé votre ordinateur » : cliquer sur « Informations
+complémentaires » puis « Exécuter quand même ». Une version signée n'affiche plus
+« Éditeur inconnu », mais SmartScreen peut encore avertir pendant les premières
+versions, le temps que leur réputation se construise.
 
 ## Fonctionnalité 001 — bibliothèque et visionneuse
 
@@ -70,6 +74,40 @@ voile semi-transparent posé sur le bureau, sans ouvrir la bibliothèque.
 ```
 
   et se retire avec `--unregister`.
+
+## Politique de signature du code (Code signing policy)
+
+Free code signing provided by [SignPath.io](https://about.signpath.io), certificate by [SignPath Foundation](https://signpath.org)
+
+(Signature de code gratuite fournie par SignPath.io, certificat de SignPath Foundation.)
+
+- **Ce qui est signé** : `picazoo.exe`, `picazoo-viewer.exe` et l'installateur
+  `Picazoo-…-win64-setup.exe`. Ils sont construits par
+  [GitHub Actions](.github/workflows/build.yml) à partir du code de ce dépôt, sur
+  `main` (préversion `dev`) ou sur un tag `vX.Y.Z` (version stable), jamais à partir
+  d'une pull request. Chaque demande de signature est approuvée à la main.
+- **Ce qui n'est pas signé avec ce certificat** : les bibliothèques d'autres projets
+  livrées avec Picazoo (Qt, FFmpeg de Qt Multimedia, libheif, libde265, LibRaw,
+  libjpeg-turbo, SQLite, xxHash, bibliothèques Visual C++). Elles sont livrées
+  telles quelles, avec la signature de leur éditeur quand elles en ont une.
+- **Rôles** :
+  - auteurs (*committers*) et relecteurs (*reviewers*) :
+    [Princinho](https://github.com/Princinho) ;
+  - approbateurs (*approvers*) : [Princinho](https://github.com/Princinho).
+
+  Toute contribution extérieure passe par une pull request, relue par un membre de
+  l'équipe avant d'être fusionnée. Les membres de l'équipe utilisent
+  l'authentification à plusieurs facteurs sur GitHub et sur SignPath.
+- **Vie privée** : This program will not transfer any information to other
+  networked systems unless specifically requested by the user or the person
+  installing or operating it. (Ce programme ne transmet aucune information à
+  d'autres systèmes en réseau, sauf si l'utilisateur ou la personne qui l'installe
+  ou l'utilise le demande expressément.) Picazoo n'a ni télémétrie, ni compte, ni
+  recherche de mises à jour ; il ne se connecte à aucun serveur. La seule
+  communication est locale, entre `picazoo-viewer.exe` et `picazoo.exe` sur le même
+  PC.
+
+Détails et marche à suivre : [docs/signature.md](docs/signature.md).
 
 ## Prérequis
 
@@ -154,5 +192,6 @@ git push origin v0.2.0
 
 La version affichée par l'application (titre de la fenêtre) vient de l'option
 CMake `PICAZOO_VERSION`, fixée par la CI d'après le tag ou le commit.
-Aucun secret n'est nécessaire : la publication utilise le jeton fourni par GitHub
-Actions.
+La publication utilise le jeton fourni par GitHub Actions. La signature
+(SignPath) ne s'active que si le secret `SIGNPATH_API_TOKEN` existe ; sans lui, les
+paquets sont publiés non signés ([docs/signature.md](docs/signature.md)).

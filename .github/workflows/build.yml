@@ -3,6 +3,9 @@
 # - Chaque push et pull request : compilation Release + tests (ctest).
 # - Push sur main : préversion « dev » (zip portable + installateur), remplacée à chaque push.
 # - Tag vX.Y.Z : version stable « Picazoo X.Y.Z » (zip portable + installateur).
+# - Signature (SignPath Foundation, docs/signature.md) : pushes sur main et tags v* seulement,
+#   jamais les pull requests, et seulement si le secret SIGNPATH_API_TOKEN existe. Sinon, les
+#   paquets sont publiés non signés, comme avant.
 #
 # Première exécution : ~45 min (compilation des dépendances vcpkg) ; ensuite, caches.
 
@@ -21,6 +24,7 @@ concurrency:
 
 permissions:
   contents: write # publication des versions
+  actions: read # SignPath lit les détails de l'exécution et télécharge l'artefact à signer
 
 env:
   QT_VERSION: "6.12.1"
@@ -31,7 +35,11 @@ env:
 jobs:
   windows:
     runs-on: windows-latest
-    timeout-minutes: 150
+    # Deux demandes de signature peuvent attendre chacune jusqu'à une heure l'approbation manuelle.
+    timeout-minutes: 270
+    env:
+      # « true » : signer les binaires puis l'installateur avec SignPath.
+      SIGNER: ${{ secrets.SIGNPATH_API_TOKEN != '' && github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')) }}
     steps:
       - uses: actions/checkout@v6
 
@@ -45,11 +53,20 @@ jobs:
           } else {
             $version = "dev-$sha"; $label = "dev-$sha"; $channel = "dev"
           }
+          # Version numérique a.b.c.d des fichiers (ressource VERSIONINFO, Inno Setup), contrôlée
+          # par SignPath : X.Y.Z.0 pour un tag, <version de CMakeLists.txt>.<n° d'exécution> sinon.
+          if ($channel -eq "stable") {
+            $numeric = ($version -replace '^(\d+\.\d+\.\d+).*$', '$1') + ".0"
+          } else {
+            $project = [regex]::Match((Get-Content CMakeLists.txt -Raw), 'project\(Picazoo VERSION (\d+\.\d+\.\d+)').Groups[1].Value
+            $numeric = "$project.$(${{ github.run_number }} % 65536)"
+          }
           "version=$version" >> $env:GITHUB_OUTPUT
+          "numeric=$numeric" >> $env:GITHUB_OUTPUT
           "label=$label" >> $env:GITHUB_OUTPUT
           "channel=$channel" >> $env:GITHUB_OUTPUT
           "baseline=$((Get-Content vcpkg.json -Raw | ConvertFrom-Json).'builtin-baseline')" >> $env:GITHUB_OUTPUT
-          Write-Host "Version : $version ($channel)"
+          Write-Host "Version : $version ($channel), fichiers $numeric, signature : $env:SIGNER"
 
       # ---------------------------------------------------------------- Qt
       - name: Cache Qt
@@ -103,7 +120,7 @@ jobs:
 
       # ------------------------------------------- Compilation et tests
       - name: Configurer
-        run: cmake --preset windows-release -DPICAZOO_VERSION=${{ steps.version.outputs.version }}
+        run: cmake --preset windows-release -DPICAZOO_VERSION=${{ steps.version.outputs.version }} -DPICAZOO_VERSION_NUMERIC=${{ steps.version.outputs.numeric }}
 
       - name: Compiler
         run: cmake --build --preset windows-release
@@ -112,11 +129,56 @@ jobs:
         run: ctest --preset windows-release --timeout 600
 
       # ----------------------------------------------------------- Paquets
-      - name: Dossier autonome et zip
+      # Ordre : dossier autonome -> signature de nos .exe -> zip et installateur à partir des
+      # fichiers signés -> signature de l'installateur -> vérification -> publication.
+      - name: Dossier autonome
+        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+        run: cmake --install build/windows-release --prefix dist/picazoo
+
+      # Seuls nos exécutables sont envoyés : les DLL de Qt et de vcpkg viennent d'autres projets,
+      # que SignPath Foundation interdit de signer avec notre certificat (docs/signature.md).
+      - name: Binaires à signer
+        id: binaires-a-signer
+        if: env.SIGNER == 'true'
+        uses: actions/upload-artifact@v6
+        with:
+          name: a-signer-binaires-${{ github.run_attempt }}
+          path: |
+            dist/picazoo/bin/picazoo.exe
+            dist/picazoo/bin/picazoo-viewer.exe
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Signature des binaires (SignPath)
+        if: env.SIGNER == 'true'
+        uses: signpath/github-action-submit-signing-request@v3
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
+          artifact-configuration-slug: picazoo-binaires # installer/signpath/picazoo-binaires.xml
+          github-artifact-id: ${{ steps.binaires-a-signer.outputs.artifact-id }}
+          wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: 3600 # le temps d'approuver la demande
+          output-artifact-directory: dist/signe/binaires
+          parameters: |
+            version: ${{ toJSON(steps.version.outputs.numeric) }}
+
+      - name: Binaires signés dans le dossier autonome
+        if: env.SIGNER == 'true'
+        shell: pwsh
+        run: |
+          foreach ($name in 'picazoo.exe', 'picazoo-viewer.exe') {
+            $signed = Get-ChildItem dist/signe/binaires -Recurse -File -Filter $name | Select-Object -First 1
+            if (-not $signed) { throw "$name signé introuvable dans le résultat de SignPath" }
+            Copy-Item $signed.FullName "dist/picazoo/bin/$name" -Force
+          }
+
+      - name: Zip portable
         if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
         shell: pwsh
         run: |
-          cmake --install build/windows-release --prefix dist/picazoo
           $zip = "dist/Picazoo-${{ steps.version.outputs.label }}-win64.zip"
           Compress-Archive -Path dist/picazoo -DestinationPath $zip -CompressionLevel Optimal
           "ZIP=$zip" >> $env:GITHUB_ENV
@@ -128,10 +190,56 @@ jobs:
           $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
           if (-not (Test-Path $iscc)) { choco install innosetup -y --no-progress | Out-Null }
           $version = "${{ steps.version.outputs.version }}"
+          $numeric = "${{ steps.version.outputs.numeric }}"
           $base = "Picazoo-${{ steps.version.outputs.label }}-win64-setup"
-          & $iscc installer\picazoo.iss "/DAppVersion=$version" "/DOutputBase=$base"
+          & $iscc installer\picazoo.iss "/DAppVersion=$version" "/DNumericVersion=$numeric" "/DOutputBase=$base"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           "SETUP=dist/$base.exe" >> $env:GITHUB_ENV
+
+      - name: Installateur à signer
+        id: installateur-a-signer
+        if: env.SIGNER == 'true'
+        uses: actions/upload-artifact@v6
+        with:
+          name: a-signer-installateur-${{ github.run_attempt }}
+          path: ${{ env.SETUP }}
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Signature de l'installateur (SignPath)
+        if: env.SIGNER == 'true'
+        uses: signpath/github-action-submit-signing-request@v3
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
+          artifact-configuration-slug: picazoo-installateur # installer/signpath/picazoo-installateur.xml
+          github-artifact-id: ${{ steps.installateur-a-signer.outputs.artifact-id }}
+          wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: 3600
+          output-artifact-directory: dist/signe/installateur
+          parameters: |
+            version: ${{ toJSON(steps.version.outputs.numeric) }}
+
+      - name: Installateur signé
+        if: env.SIGNER == 'true'
+        shell: pwsh
+        run: |
+          $name = Split-Path $env:SETUP -Leaf
+          $signed = Get-ChildItem dist/signe/installateur -Recurse -File -Filter $name | Select-Object -First 1
+          if (-not $signed) { throw "$name signé introuvable dans le résultat de SignPath" }
+          Copy-Item $signed.FullName $env:SETUP -Force
+
+      # Strict quand SignPath est configuré : nos .exe et l'installateur doivent être signés.
+      # Sinon, simple compte rendu (résumé de l'exécution).
+      - name: Vérification des signatures
+        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+        shell: pwsh
+        run: |
+          $strict = @{}
+          if ($env:SIGNER -eq 'true') { $strict.Strict = $true }
+          ./scripts/ci/verify_signatures.ps1 -Dist dist/picazoo -Extra $env:SETUP @strict
 
       - name: Artefacts
         if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
@@ -152,9 +260,15 @@ jobs:
           $notes = @"
           Dernière version de développement, construite automatiquement à partir de main
           (commit ${{ github.sha }}). Elle est remplacée à chaque modification : elle peut
-          contenir des défauts. Les exécutables ne sont pas signés : Windows SmartScreen
-          peut afficher un avertissement (« Informations complémentaires » puis « Exécuter quand même »).
+          contenir des défauts.
           "@
+          if ($env:SIGNER -eq 'true') {
+            $notes += "`nLes exécutables et l'installateur sont signés (certificat de SignPath Foundation). " +
+                      "Windows SmartScreen peut encore avertir tant que la réputation des versions signées se construit."
+          } else {
+            $notes += "`nLes exécutables ne sont pas signés : Windows SmartScreen peut afficher un avertissement " +
+                      "(« Informations complémentaires » puis « Exécuter quand même »)."
+          }
           gh release delete dev --yes --cleanup-tag 2>$null
           git push origin :refs/tags/dev 2>$null
           gh release create dev $env:ZIP $env:SETUP --prerelease --target ${{ github.sha }} `

@@ -1,3 +1,8 @@
 // Icône de la visionneuse (Explorateur, « Ouvrir avec », barre des tâches). Qt la reprend
 // pour les fenêtres : la ressource doit s'appeler IDI_ICON1.
 IDI_ICON1 ICON "../../assets/icons/picazoo.ico"
+
+// Nom et version du produit (Propriétés > Détails ; contrôlés à la signature).
+#define PICAZOO_FILE_DESCRIPTION "Picazoo - visionneuse de photos"
+#define PICAZOO_ORIGINAL_FILENAME "picazoo-viewer.exe"
+#include "picazoo_versioninfo.rc"
