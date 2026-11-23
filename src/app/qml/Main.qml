@@ -99,8 +99,12 @@ ApplicationWindow {
             return
         }
         libraryView.showGroup(0)
-        if (name === "summary")
+        if (name === "summary") {
+            dups.groups.selectAll()
             libraryView.openTrashSummary()
+        } else if (name === "dossiers" || name === "aside" || name === "selection") {
+            libraryView.devDuplicates(name)
+        }
     }
 
     Timer {

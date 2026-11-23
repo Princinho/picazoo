@@ -15,6 +15,7 @@
 #include <QString>
 
 #include <atomic>
+#include <functional>
 #include <memory>
 #include <mutex>
 #include <optional>
@@ -36,6 +37,8 @@ struct TrashPlanEntry {
     ItemId keeper = 0;
     QString keeperPath;
     bool identical = false; // contenu identique à la copie gardée (vérifié par empreinte)
+    DupLevel level = DupLevel::Identical; // 006 : niveau du groupe
+    bool examined = false;                // 006 : au moins un choix fait à la main dans le groupe
 };
 
 struct BlockedEntry {
@@ -50,6 +53,10 @@ struct TrashPlan {
     QList<BlockedEntry> blocked;
     QList<GroupId> refused; // groupes dont aucune copie ne resterait (FR-017)
     qint64 bytes = 0;
+
+    // 006 : sous-plan des seules entrées retenues (octets recalculés) ; les fichiers bloqués et
+    // les groupes refusés sont gardés pour le récapitulatif.
+    TrashPlan filtered(const std::function<bool(const TrashPlanEntry&)>& keep) const;
 };
 
 enum class OperationState { Planned, Running, Done, Partial, Failed, Undone, PartiallyUndone };
@@ -73,6 +80,7 @@ struct Operation {
     OperationState state = OperationState::Planned;
     int fileCount = 0;
     qint64 bytes = 0;
+    bool stopped = false; // 006 : arrêtée par l'utilisateur
     QList<OperationEntry> entries;
 };
 
@@ -95,6 +103,9 @@ public:
     OperationId execute(const TrashPlan& confirmed);
     // Restaure depuis la corbeille ce qui y est encore (FR-021). 0 si impossible.
     OperationId undo(OperationId id);
+    // 006 (research R8) : l'opération de mise à la corbeille en cours s'arrête entre deux
+    // fichiers ; les fichiers non traités restent « pending ». Sans opération : sans effet.
+    void requestStop();
 
     QList<Operation> journal() const; // le plus récent en premier, sans le détail
     std::optional<Operation> operation(OperationId id) const;
@@ -119,6 +130,7 @@ private:
     mutable std::recursive_mutex dbMutex_;
     std::thread worker_;
     std::atomic<bool> busy_{false};
+    std::atomic<bool> stopRequested_{false};
 };
 
 } // namespace picazoo

@@ -156,6 +156,23 @@ minutes.
   jour, lectures à débit limité et à faible priorité, pause sur batterie ou dans
   la visionneuse, reprise après fermeture ; désactivable dans Outils.
 
+## Fonctionnalité 006 — gestion des doublons en lot
+
+- Sélection de groupes (case, Maj + clic, Ctrl + A sur les groupes affichés) et
+  actions en lot : revenir à la suggestion, garder les copies d'un dossier,
+  « Garder toutes », « Ce ne sont pas des doublons », mise à la corbeille ; chaque
+  action en lot s'annule (message « Annuler », Ctrl + Z, ou « Écartés »).
+- Panneau « Dossiers » : paires de dossiers qui partagent des copies (une
+  sauvegarde en double se règle en une action), doublons internes, règles
+  durables « toujours préférer / écarter ce dossier » ; une règle n'écarte jamais
+  un RAW ou une copie de plus grande résolution hors « Identique ».
+- Vue compacte (un groupe par ligne, dépliable), filtres combinés (dossier, paire,
+  type, état, taille minimale, années) et tris ; « Voir les doublons de ce
+  dossier » depuis le menu d'un dossier.
+- Récapitulatif par niveau et par dossier d'origine, « Très ressemblante » non
+  vérifiées exclues par défaut ; la corbeille ne porte que sur les groupes
+  sélectionnés (ou le groupe courant) ; une opération en cours peut être arrêtée.
+
 Photos de test pour essayer l'écran « Doublons » à la main :
 
 ```powershell

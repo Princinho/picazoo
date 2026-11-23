@@ -208,7 +208,7 @@ int main(int argc, char* argv[])
     if (controller && !showPath.isEmpty())
         QTimer::singleShot(300, controller.get(), [c = controller.get(), showPath] { c->showPath(showPath); });
 
-    // PICAZOO_DEV_SCREEN=duplicates|summary|log (développement) : ouvre cet écran au démarrage.
+    // PICAZOO_DEV_SCREEN=duplicates|summary|log|dossiers|aside|selection (développement) : ouvre cet écran au démarrage.
     if (qEnvironmentVariableIsSet("PICAZOO_DEV_SCREEN") && !engine.rootObjects().isEmpty()) {
         QObject* root = engine.rootObjects().first();
         QTimer::singleShot(1500, root, [root] {

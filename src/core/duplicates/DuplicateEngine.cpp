@@ -1,5 +1,6 @@
 #include "duplicates/DuplicateEngine.h"
 
+#include "duplicates/Suggestion.h"
 #include "duplicates/VisualFingerprint.h"
 #include "index/Database.h"
 #include "jobs/ThumbnailPipeline.h"
@@ -827,6 +828,8 @@ void DuplicateEngine::regroup()
         rec.bind(1, gid);
         rec.run();
     }
+    // 006 : copie suggérée (qualité + règles de dossier), place récupérable, garde-fou FR-017.
+    Suggestion::apply(*db_);
     tx.commit();
     groupsDirty_ = true;
 }
