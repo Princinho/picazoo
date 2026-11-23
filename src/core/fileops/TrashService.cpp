@@ -170,13 +170,19 @@ TrashPlan TrashService::plan(const QList<GroupId>& groups) const
             p.refused << gid;
             continue;
         }
-        // Copie gardée de référence : le centre s'il est gardé, sinon la première gardée.
+        // Copie gardée de référence (006) : la copie suggérée si elle est gardée, sinon le centre
+        // s'il est gardé, sinon la première gardée.
         const DuplicateCopy keeper = [&] {
+            for (const DuplicateCopy& c : kept)
+                if (c.isSuggested)
+                    return c;
             for (const DuplicateCopy& c : kept)
                 if (c.isCenter)
                     return c;
             return kept.first();
         }();
+        const bool examined =
+            std::any_of(g->copies.begin(), g->copies.end(), [](const DuplicateCopy& c) { return c.userChoice; });
         const auto keeperItem = lib_.item(keeper.item);
         if (!keeperItem || !exists(keeperItem->path())) {
             p.refused << gid; // la copie gardée doit être présente
@@ -207,6 +213,8 @@ TrashPlan TrashService::plan(const QList<GroupId>& groups) const
             e.keeper = keeper.item;
             e.keeperPath = keeperItem->path();
             e.identical = c.level == DupLevel::Identical && keeper.level == DupLevel::Identical;
+            e.level = g->level;
+            e.examined = examined;
             p.toTrash << e;
             p.bytes += e.bytes;
         }
@@ -217,6 +225,25 @@ TrashPlan TrashService::plan(const QList<GroupId>& groups) const
 TrashPlan TrashService::planAllIdentical() const
 {
     return plan(engine_.store().groups(LevelFilter::Identical));
+}
+
+TrashPlan TrashPlan::filtered(const std::function<bool(const TrashPlanEntry&)>& keep) const
+{
+    TrashPlan p;
+    p.blocked = blocked;
+    p.refused = refused;
+    for (const TrashPlanEntry& e : toTrash)
+        if (keep(e)) {
+            p.toTrash << e;
+            p.bytes += e.bytes;
+        }
+    return p;
+}
+
+void TrashService::requestStop()
+{
+    if (busy_.load())
+        stopRequested_ = true;
 }
 
 // ---------------------------------------------------------------- Exécution
@@ -261,6 +288,7 @@ OperationId TrashService::execute(const TrashPlan& confirmed)
         }
         tx.commit();
     }
+    stopRequested_ = false;
     busy_ = true;
     worker_ = std::thread([this, id, plan = std::move(plan)] { runTrash(id, plan); });
     return id;
@@ -315,7 +343,13 @@ void TrashService::runTrash(OperationId id, TrashPlan plan)
     QList<ItemId> trashed;
     int done = 0, ok = 0;
     bool changed = false;
+    bool stopped = false;
     for (const TrashPlanEntry& e : plan.toTrash) {
+        // 006 (research R8) : arrêt entre deux fichiers ; les suivants restent « pending ».
+        if (stopRequested_.load()) {
+            stopped = true;
+            break;
+        }
         const qint64 entryId = entryIds.value(e.item);
         QString result, message;
         const IndexedFile victim = indexedFile(*db_, e.item);
@@ -363,6 +397,14 @@ void TrashService::runTrash(OperationId id, TrashPlan plan)
     const OperationState state = ok == int(plan.toTrash.size()) ? OperationState::Done
                                  : ok > 0                       ? OperationState::Partial
                                                                 : OperationState::Failed;
+    if (stopped) {
+        std::lock_guard lock(dbMutex_);
+        std::lock_guard dbLock(db_->mutex());
+        auto q = db_->prepare("UPDATE file_operation SET stopped = 1 WHERE id = ?");
+        q.bind(1, id);
+        q.run();
+    }
+    stopRequested_ = false;
     busy_ = false;
     finish(id, state);
 }
@@ -448,7 +490,7 @@ QList<Operation> TrashService::journal() const
     std::lock_guard lock(dbMutex_);
     std::lock_guard dbLock(db_->mutex());
     QList<Operation> out;
-    auto q = db_->prepare("SELECT id, kind, undoes_id, created_at, finished_at, state, file_count, bytes"
+    auto q = db_->prepare("SELECT id, kind, undoes_id, created_at, finished_at, state, file_count, bytes, stopped"
                           " FROM file_operation ORDER BY id DESC");
     while (q.step()) {
         Operation o;
@@ -460,6 +502,7 @@ QList<Operation> TrashService::journal() const
         o.state = operationStateFromDb(q.text(5));
         o.fileCount = q.int32(6);
         o.bytes = q.int64(7);
+        o.stopped = q.int32(8) != 0;
         out << o;
     }
     return out;
@@ -469,7 +512,7 @@ std::optional<Operation> TrashService::operation(OperationId id) const
 {
     std::lock_guard lock(dbMutex_);
     std::lock_guard dbLock(db_->mutex());
-    auto q = db_->prepare("SELECT id, kind, undoes_id, created_at, finished_at, state, file_count, bytes"
+    auto q = db_->prepare("SELECT id, kind, undoes_id, created_at, finished_at, state, file_count, bytes, stopped"
                           " FROM file_operation WHERE id = ?");
     q.bind(1, id);
     if (!q.step())
@@ -483,6 +526,7 @@ std::optional<Operation> TrashService::operation(OperationId id) const
     o.state = operationStateFromDb(q.text(5));
     o.fileCount = q.int32(6);
     o.bytes = q.int64(7);
+    o.stopped = q.int32(8) != 0;
     // Pour une restauration, le détail est celui de l'opération annulée.
     auto e = db_->prepare("SELECT id, item_id, original_path, size_bytes, keeper_path, result, message"
                           " FROM file_operation_entry WHERE operation_id = ? ORDER BY id");

@@ -25,6 +25,7 @@ QString migrationName(int version)
     switch (version) {
     case 1: return QStringLiteral(":/sql/001_initial.sql");
     case 2: return QStringLiteral(":/sql/002_doublons.sql");
+    case 3: return QStringLiteral(":/sql/003_doublons_lot.sql");
     default: return {};
     }
 }

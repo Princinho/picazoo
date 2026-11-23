@@ -40,13 +40,16 @@ struct Rig {
     std::unique_ptr<DuplicateEngine> engine;
     std::unique_ptr<TrashService> trash;
 
-    Rig()
+    // `extra` écrit d'autres fichiers avant l'ajout du dossier à la bibliothèque (006).
+    explicit Rig(const std::function<void(Rig&)>& extra = {})
     {
         content = FixtureFactory::jpegOf(FixtureFactory::scene(QSize(800, 600), 5));
         FixtureFactory::writeBytes(photos.file("A/photo.jpg"), content);
         FixtureFactory::writeBytes(photos.file("B/photo (copie).jpg"), content);
         FixtureFactory::writeBytes(photos.file("C/photo-2.jpg"), content);
         FixtureFactory::writeImage(photos.file("A/autre.jpg"), FixtureFactory::scene(QSize(800, 600), 6));
+        if (extra)
+            extra(*this);
         fx.lib->addRoot(photos.path());
         engine = std::make_unique<DuplicateEngine>(*fx.lib, testOptions());
         trash = std::make_unique<TrashService>(*fx.lib, *engine);
@@ -185,6 +188,107 @@ private slots:
         QCOMPARE(plan.toTrash.size(), 2);
         for (const auto& e : plan.toTrash)
             QVERIFY(e.identical);
+    }
+
+    // ------------------------------------------------------------------------- 006
+
+    void planCoversOnlyRequestedGroups()
+    {
+        // Un second groupe, dans un autre dossier.
+        Rig rig([](Rig& r) {
+            const QByteArray other = FixtureFactory::jpegOf(FixtureFactory::scene(QSize(800, 600), 9));
+            FixtureFactory::writeBytes(r.photos.file("D/second.jpg"), other);
+            FixtureFactory::writeBytes(r.photos.file("E/second.jpg"), other);
+        });
+        QVERIFY(rig.idle());
+        const QList<GroupId> groups = rig.engine->store().groups();
+        QCOMPARE(groups.size(), 2);
+        for (GroupId gid : groups) {
+            const TrashPlan plan = rig.trash->plan({gid});
+            for (const auto& e : plan.toTrash)
+                QCOMPARE(e.group, gid); // SC-004 : rien hors des groupes demandés
+            const SelectionTotals t = rig.engine->store().totals({gid});
+            QCOMPARE(t.files, plan.toTrash.size());
+            QCOMPARE(t.bytes, plan.bytes);
+            for (const auto& e : plan.toTrash) {
+                QCOMPARE(e.level, DupLevel::Identical);
+                QVERIFY(!e.examined);
+            }
+        }
+        // Un choix fait à la main rend le groupe « examiné » ; filtered() garde un sous-plan cohérent.
+        const auto g = *rig.engine->store().group(groups.first());
+        QVERIFY(rig.engine->store().setKeep(groups.first(), g.copies.last().item, true));
+        const TrashPlan all = rig.trash->plan(groups);
+        const TrashPlan examined = all.filtered([](const TrashPlanEntry& e) { return e.examined; });
+        QVERIFY(!examined.toTrash.isEmpty());
+        QVERIFY(examined.toTrash.size() < all.toTrash.size());
+        qint64 bytes = 0;
+        for (const auto& e : examined.toTrash)
+            bytes += e.bytes;
+        QCOMPARE(examined.bytes, bytes);
+    }
+
+    void planKeeperIsTheSuggestedCopy()
+    {
+        Rig rig;
+        QVERIFY(rig.idle());
+        const GroupId gid = rig.onlyGroup();
+        // Règle : préférer le dossier C, qui ne contient pas le centre (chemin le plus court en A).
+        rig.engine->store().setFolderRule(rig.photos.file("C"), RuleKind::Prefer);
+        const auto g = *rig.engine->store().group(gid);
+        QVERIFY(g.suggested != g.center);
+        const TrashPlan plan = rig.trash->plan({gid});
+        QCOMPARE(plan.toTrash.size(), 2);
+        for (const auto& e : plan.toTrash) {
+            QCOMPARE(e.keeper, g.suggested);
+            QVERIFY(e.keeperPath.contains(QStringLiteral("\\C\\")));
+            QVERIFY(!e.path.contains(QStringLiteral("\\C\\")));
+        }
+    }
+
+    void stopLeavesAnExactJournalAndUndoes()
+    {
+        Rig rig([](Rig& r) {
+            for (int i = 0; i < 40; ++i)
+                FixtureFactory::writeBytes(r.photos.file(QStringLiteral("Lot/copie-%1.jpg").arg(i)), r.content);
+        });
+        QVERIFY(rig.idle());
+        const FsSnapshot before = FsSnapshot::take(rig.photos.path());
+        const GroupId gid = rig.onlyGroup();
+        QVERIFY(gid);
+        const TrashPlan plan = rig.trash->plan({gid});
+        QCOMPARE(plan.toTrash.size(), 42);
+
+        const OperationId op = rig.trash->execute(plan);
+        QVERIFY(op);
+        rig.trash->requestStop();
+        QVERIFY(rig.trash->waitForIdle(60000));
+        const auto done = rig.trash->operation(op);
+        QVERIFY(done->stopped);
+        int trashed = 0, pending = 0;
+        for (const auto& e : done->entries) {
+            if (e.result == u"trashed") {
+                ++trashed;
+                QVERIFY(!QFileInfo::exists(e.path));
+            } else {
+                QCOMPARE(e.result, QStringLiteral("pending"));
+                QVERIFY(QFileInfo::exists(e.path)); // jamais touché
+                ++pending;
+            }
+        }
+        QCOMPARE(trashed + pending, 42);
+        QVERIFY(pending > 0);
+        QCOMPARE(done->state, trashed > 0 ? OperationState::Partial : OperationState::Failed);
+        QVERIFY(rig.trash->journal().first().stopped);
+
+        if (trashed > 0) {
+            QVERIFY(rig.trash->undo(op));
+            QVERIFY(rig.trash->waitForIdle(60000));
+        }
+        PICAZOO_VERIFY_UNTOUCHED(before, rig.photos.path());
+        // Sans opération en cours : sans effet.
+        rig.trash->requestStop();
+        QVERIFY(!rig.trash->busy());
     }
 };
 

@@ -1,7 +1,9 @@
 // 002 — logique pure de la détection des doublons : régulateur d'E/S, règle de la copie à
 // garder, regroupement en étoile, empreinte visuelle, vérification des paires.
 
+#include "duplicates/FolderRules.h"
 #include "duplicates/Grouper.h"
+#include "duplicates/Suggestion.h"
 #include "duplicates/KeeperRule.h"
 #include "duplicates/PairVerifier.h"
 #include "duplicates/VisualFingerprint.h"
@@ -243,6 +245,90 @@ private slots:
         const VisualSample rot = PairVerifier::sample(thumb(original.transformed(QTransform().rotate(90))));
         const PairVerdict v = PairVerifier::verify(a, rot, 270, std::nullopt, std::nullopt);
         QVERIFY2(v.match && v.level == DupLevel::SameImage, qPrintable(QString::number(v.ssim)));
+    }
+
+    // ------------------------------------------------------------- 006 (research R1, R2)
+
+    void folderRulesMatchMostSpecificAtSegmentBoundary()
+    {
+        FolderRule images{1, QStringLiteral("C:\\Photos\\Images"), RuleKind::Prefer};
+        FolderRule exports{2, QStringLiteral("c:\\photos\\images\\exports\\"), RuleKind::Avoid};
+        FolderRule backup{3, QStringLiteral("D:\\Sauvegarde"), RuleKind::Avoid};
+        const FolderRules rules({images, backup, exports});
+
+        QCOMPARE(rules.match(QStringLiteral("C:\\Photos\\Images"))->id, 1);
+        QCOMPARE(rules.match(QStringLiteral("C:\\PHOTOS\\images\\2019\\Été"))->id, 1); // casse ignorée
+        QCOMPARE(rules.match(QStringLiteral("C:\\Photos\\Images\\Exports\\2020"))->id, 2); // le plus précis
+        QCOMPARE(rules.match(QStringLiteral("D:\\Sauvegarde\\2019"))->id, 3);
+        QVERIFY(!rules.match(QStringLiteral("D:\\Sauvegarde 2\\2019"))); // frontière de segment
+        QVERIFY(!rules.match(QStringLiteral("C:\\Photos")));
+        QVERIFY(FolderRules::covers(QStringLiteral("D:\\"), QStringLiteral("D:\\Sauvegarde")));
+        QCOMPARE(FolderRules::normalized(QStringLiteral("D:/Sauvegarde/")), QStringLiteral("D:\\Sauvegarde"));
+    }
+
+    void suggestionFollowsPreferredAndAvoidedFolders()
+    {
+        const CopyFacts inImages = facts(1, 1000, 500, QStringLiteral("C:\\Images\\2019\\a.jpg"));
+        const CopyFacts inBackup = facts(2, 1000, 500, QStringLiteral("D:\\Sauvegarde\\2019\\a.jpg"));
+        const CopyFacts inOther = facts(3, 1000, 500, QStringLiteral("E:\\Divers\\a.jpg"));
+
+        // Sans règle : la suggestion de la 002 (le centre).
+        SuggestionOutcome s = Suggestion::choose(DupLevel::Identical, 2, {inImages, inBackup}, FolderRules());
+        QCOMPARE(s.keeper, 2);
+        QCOMPARE(s.reason, SuggestionReason::Quality);
+
+        const FolderRules prefer({FolderRule{1, QStringLiteral("C:\\Images"), RuleKind::Prefer}});
+        s = Suggestion::choose(DupLevel::Identical, 2, {inImages, inBackup}, prefer);
+        QCOMPARE(s.keeper, 1);
+        QCOMPARE(s.reason, SuggestionReason::FolderPreferred);
+        QCOMPARE(s.detail, QStringLiteral("C:\\Images"));
+
+        const FolderRules avoid({FolderRule{2, QStringLiteral("D:\\Sauvegarde"), RuleKind::Avoid}});
+        s = Suggestion::choose(DupLevel::Identical, 2, {inImages, inBackup, inOther}, avoid);
+        QVERIFY(s.keeper == 1 || s.keeper == 3);
+        QCOMPARE(s.reason, SuggestionReason::FolderAvoided);
+        QCOMPARE(s.detail, QStringLiteral("D:\\Sauvegarde"));
+
+        // Une règle qui ne concerne aucune copie ne change rien.
+        const FolderRules elsewhere({FolderRule{4, QStringLiteral("F:\\Rien"), RuleKind::Prefer}});
+        s = Suggestion::choose(DupLevel::Identical, 2, {inImages, inBackup}, elsewhere);
+        QCOMPARE(s.keeper, 2);
+        QCOMPARE(s.flags, 0);
+    }
+
+    void suggestionKeepsBestWhenAllAvoided()
+    {
+        const CopyFacts a = facts(1, 1000, 500, QStringLiteral("D:\\Sauvegarde\\a.jpg"));
+        const CopyFacts b = facts(2, 1000, 500, QStringLiteral("D:\\Sauvegarde\\b\\a.jpg"));
+        const FolderRules avoid({FolderRule{2, QStringLiteral("D:\\Sauvegarde"), RuleKind::Avoid}});
+        const SuggestionOutcome s = Suggestion::choose(DupLevel::Identical, 1, {a, b}, avoid);
+        QCOMPARE(s.keeper, 1);
+        QCOMPARE(s.flags, int(FlagAllAvoided));
+        QCOMPARE(s.reason, SuggestionReason::Quality);
+    }
+
+    void suggestionProtectsQualityOutsideIdentical()
+    {
+        // Clarification FR-006 : le JPEG réduit du dossier préféré ne fait jamais écarter le RAW.
+        const CopyFacts raw = facts(1, 24000000, 25000000, QStringLiteral("D:\\Sauvegarde\\IMG_1.CR2"), true);
+        const CopyFacts small = facts(2, 2000000, 1000000, QStringLiteral("C:\\Images\\IMG_1.jpg"));
+        const FolderRules prefer({FolderRule{1, QStringLiteral("C:\\Images"), RuleKind::Prefer}});
+        SuggestionOutcome s = Suggestion::choose(DupLevel::SameImage, 1, {raw, small}, prefer);
+        QCOMPARE(s.keeper, 1);
+        QCOMPARE(s.flags, int(FlagPreferredWorse));
+
+        // Même cas en résolution seule (deux JPEG).
+        const CopyFacts big = facts(3, 12000000, 6000000, QStringLiteral("D:\\Sauvegarde\\IMG_2.jpg"));
+        const CopyFacts reduced = facts(4, 3000000, 900000, QStringLiteral("C:\\Images\\IMG_2.jpg"));
+        s = Suggestion::choose(DupLevel::Similar, 3, {big, reduced}, prefer);
+        QCOMPARE(s.keeper, 3);
+        QCOMPARE(s.flags, int(FlagPreferredWorse));
+
+        // À qualité égale, la règle s'applique aussi hors « Identique ».
+        const CopyFacts twin = facts(5, 12000000, 5000000, QStringLiteral("C:\\Images\\IMG_2.png"));
+        s = Suggestion::choose(DupLevel::SameImage, 3, {big, twin}, prefer);
+        QCOMPARE(s.keeper, 5);
+        QCOMPARE(s.reason, SuggestionReason::FolderPreferred);
     }
 };
 

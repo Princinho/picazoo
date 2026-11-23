@@ -69,6 +69,70 @@ QString levelLabel(DupLevel l)
     return {};
 }
 
+QString toDb(SuggestionReason r)
+{
+    switch (r) {
+    case SuggestionReason::FolderPreferred: return QStringLiteral("folder_preferred");
+    case SuggestionReason::FolderAvoided: return QStringLiteral("folder_avoided");
+    case SuggestionReason::Quality: break;
+    }
+    return {};
+}
+
+SuggestionReason suggestionReasonFromDb(const QString& s)
+{
+    if (s == u"folder_preferred")
+        return SuggestionReason::FolderPreferred;
+    if (s == u"folder_avoided")
+        return SuggestionReason::FolderAvoided;
+    return SuggestionReason::Quality;
+}
+
+QString toDb(RuleKind k) { return k == RuleKind::Avoid ? QStringLiteral("avoid") : QStringLiteral("prefer"); }
+
+RuleKind ruleKindFromDb(const QString& s) { return s == u"avoid" ? RuleKind::Avoid : RuleKind::Prefer; }
+
+QString toDb(BatchKind k)
+{
+    switch (k) {
+    case BatchKind::Reset: return QStringLiteral("reset");
+    case BatchKind::KeepFolder: return QStringLiteral("keep_folder");
+    case BatchKind::KeepAll: return QStringLiteral("keep_all");
+    case BatchKind::NotDuplicate: return QStringLiteral("not_duplicate");
+    }
+    return QStringLiteral("reset");
+}
+
+BatchKind batchKindFromDb(const QString& s)
+{
+    if (s == u"keep_folder")
+        return BatchKind::KeepFolder;
+    if (s == u"keep_all")
+        return BatchKind::KeepAll;
+    if (s == u"not_duplicate")
+        return BatchKind::NotDuplicate;
+    return BatchKind::Reset;
+}
+
+QString suggestionLabel(const DuplicateGroup& g)
+{
+    switch (g.suggestionReason) {
+    case SuggestionReason::FolderPreferred: return QStringLiteral("Dossier préféré : ") + g.suggestionDetail;
+    case SuggestionReason::FolderAvoided: return QStringLiteral("Dossier à écarter : ") + g.suggestionDetail;
+    case SuggestionReason::Quality: break;
+    }
+    return reasonLabel(g.reason);
+}
+
+QString flagLabel(int flags)
+{
+    if (flags & FlagPreferredWorse)
+        return QStringLiteral("La copie du dossier préféré est moins bonne");
+    if (flags & FlagAllAvoided)
+        return QStringLiteral("Toutes les copies sont dans des dossiers à écarter");
+    return {};
+}
+
 QString reasonLabel(KeeperReason r)
 {
     switch (r) {
