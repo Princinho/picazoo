@@ -38,6 +38,13 @@ foreach(_file IN LISTS PICAZOO_TEST_FILES)
             "${PROJECT_SOURCE_DIR}/src/app/models/ItemSelection.h")
         target_include_directories(${_name} PRIVATE "${PROJECT_SOURCE_DIR}/src/app")
     endif()
+    if(_name STREQUAL "tst_showpath")
+        # « Ouvrir dans Picazoo » (005) : le contrôleur de l'application est testé directement.
+        target_sources(${_name} PRIVATE
+            "${PROJECT_SOURCE_DIR}/src/app/controllers/AppController.cpp"
+            "${PROJECT_SOURCE_DIR}/src/app/controllers/AppController.h")
+        target_include_directories(${_name} PRIVATE "${PROJECT_SOURCE_DIR}/src/app")
+    endif()
     add_test(NAME ${_name} COMMAND ${_name})
     set_tests_properties(${_name} PROPERTIES
         ENVIRONMENT_MODIFICATION "${PICAZOO_TEST_PATH}"

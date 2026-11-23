@@ -17,6 +17,7 @@ Spec Kit (`specify` → `clarify` → `plan` → `tasks` → `implement`).
 | 002 | **Détection des doublons** | Retrouver les images identiques, même en résolutions, formats ou compressions différents ; choisir lesquelles garder ; mettre les autres à la corbeille. | 001 |
 | 003 | **Images liées** | Repérer les images dont les noms partagent une même racine (`vacances_bali_001`, `vacances_bali_002`…), afficher une estimation de confiance, et laisser l'utilisateur valider ou corriger des « groupes ». | 001 |
 | 004 | **Réorganisation de la bibliothèque** | Copier ou déplacer toute la bibliothèque vers un dossier choisi, avec un sous-dossier par groupe d'images liées ; aperçu avant d'agir, journal et annulation. | 001, 003 (002 recommandé avant) |
+| 005 | **Visionneuse autonome** | Comme la Visionneuse de photos Picasa : un double-clic sur une photo dans l'Explorateur ouvre seulement une visionneuse légère, quasi instantanée, sans bibliothèque ni analyse ; parcours des images du dossier avec transitions animées, zoom à la molette centré sur le curseur ; association avec Windows proposée, jamais imposée ; passage vers l'application complète. | 001 (peut passer avant 002–004) |
 
 ## Pistes pour après (non engagées)
 

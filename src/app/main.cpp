@@ -9,11 +9,13 @@
 #include "models/GridRowModel.h"
 #include "models/ItemSelection.h"
 #include "providers/ThumbnailImageProvider.h"
+#include "platform/win/SingleInstance.h"
 
 #include <windows.h>
 
 #include <QAbstractNativeEventFilter>
 #include <QDir>
+#include <QFileInfo>
 #include <QGuiApplication>
 #include <QPalette>
 #include <QQmlApplicationEngine>
@@ -85,6 +87,19 @@ int main(int argc, char* argv[])
                                 : QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation) +
                                       QStringLiteral("/Picazoo");
 
+    // --show <chemin> : « Ouvrir dans Picazoo » depuis la visionneuse autonome (005, V12).
+    // Une seule bibliothèque ouverte à la fois : une seconde instance transmet la demande
+    // à la première, qui passe au premier plan.
+    const QStringList args = app.arguments();
+    QString showPath;
+    if (const qsizetype i = args.indexOf(QStringLiteral("--show")); i >= 0 && i + 1 < args.size())
+        showPath = QDir::toNativeSeparators(QFileInfo(args[i + 1]).absoluteFilePath());
+    picazoo::platform::SingleInstance instance(
+        QStringLiteral("Picazoo.App.%1").arg(qHash(QDir::cleanPath(dataDir).toLower()), 0, 16));
+    if (!instance.isPrimary() && instance.sendToPrimary(showPath))
+        return 0;
+    instance.listen();
+
     std::unique_ptr<picazoo::Library> library;
     QString startupError;
     try {
@@ -141,6 +156,25 @@ int main(int argc, char* argv[])
     ctx->setContextProperty(QStringLiteral("selection"), selection.get());
 
     engine.loadFromModule("Picazoo", "Main");
+
+    QQuickWindow* mainWindow =
+        engine.rootObjects().isEmpty() ? nullptr : qobject_cast<QQuickWindow*>(engine.rootObjects().first());
+    auto bringToFront = [mainWindow] {
+        if (!mainWindow)
+            return;
+        if (mainWindow->visibility() == QWindow::Minimized)
+            mainWindow->showNormal();
+        mainWindow->raise();
+        mainWindow->requestActivate();
+    };
+    QObject::connect(&instance, &picazoo::platform::SingleInstance::messageReceived, &app,
+                     [c = controller.get(), bringToFront](const QString& path) {
+                         bringToFront();
+                         if (c && !path.isEmpty())
+                             c->showPath(path);
+                     });
+    if (controller && !showPath.isEmpty())
+        QTimer::singleShot(300, controller.get(), [c = controller.get(), showPath] { c->showPath(showPath); });
 
     // PICAZOO_SCREENSHOT=<fichier.png>[;délai ms] (développement) : capture la fenêtre puis quitte.
     if (qEnvironmentVariableIsSet("PICAZOO_SCREENSHOT") && !engine.rootObjects().isEmpty()) {

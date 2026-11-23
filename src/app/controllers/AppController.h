@@ -41,6 +41,10 @@ public:
     void setLastFolderId(qint64 id);
 
     Q_INVOKABLE void addRoot(const QUrl& folder);
+    Q_INVOKABLE void addRootPath(const QString& folder);
+    // « Ouvrir dans Picazoo » depuis la visionneuse autonome (005, research V12) : montre
+    // la photo si son dossier est dans la bibliothèque, sinon propose d'ajouter le dossier.
+    void showPath(const QString& path);
     Q_INVOKABLE void removeRoot(qint64 rootId);
     Q_INVOKABLE void excludeFolder(qint64 rootId, const QUrl& folder);
     Q_INVOKABLE void includeFolder(qint64 rootId, const QString& path);
@@ -61,6 +65,9 @@ signals:
     void sortChanged();
     void lastFolderChanged();
     void storageError(const QString& message);
+    void showItem(qint64 itemId);
+    void showMessage(const QString& message);
+    void askAddFolder(const QString& folder);
 
 private:
     picazoo::Library& lib_;

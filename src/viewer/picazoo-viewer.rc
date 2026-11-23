@@ -1,0 +1,3 @@
+// Icône de la visionneuse (Explorateur, « Ouvrir avec », barre des tâches). Qt la reprend
+// pour les fenêtres : la ressource doit s'appeler IDI_ICON1.
+IDI_ICON1 ICON "../../assets/icons/picazoo.ico"
