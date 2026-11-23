@@ -70,6 +70,9 @@ public:
     void removeExcluded(RootId id, const QString& path);
     // Retire de l'index (jamais du disque) tout ce qui se trouve sous `path`.
     QList<ItemId> removeItemsUnder(const QString& path, QSet<FolderId>* touched = nullptr);
+    // Retire ces éléments de l'index (jamais du disque) : fichiers mis à la corbeille par la 002.
+    // Renvoie les dossiers touchés (compteurs mis à jour, dossiers vides retirés).
+    QSet<FolderId> removeItems(const QList<ItemId>& ids);
 
     // --- Analyse
     SyncResult syncFolder(const DiscoveredFolder& folder, qint64 stamp, const IdentityFn& identity);

@@ -5,10 +5,11 @@ Picasa : on indique les dossiers à surveiller, Picazoo trouve tout seul les
 photos et les vidéos, les affiche par dossier en vignettes, et un double-clic
 les ouvre en grand.
 
-**Picazoo ne modifie, ne déplace, ne renomme et ne supprime jamais vos
-fichiers.** Il n'écrit rien dans vos dossiers ; ses données (index, vignettes,
-réglages) sont dans `%LOCALAPPDATA%\Picazoo` et peuvent être supprimées à tout
-moment (elles se reconstruisent).
+**Picazoo ne modifie, ne déplace et ne renomme jamais vos fichiers, et ne les
+supprime que lorsque vous le confirmez : il les envoie alors à la corbeille de
+Windows, jamais en effacement définitif, et l'opération peut être annulée.** Il
+n'écrit rien dans vos dossiers ; ses données (index, vignettes, réglages,
+journal) sont dans `%LOCALAPPDATA%\Picazoo`.
 
 Feuille de route : [docs/feuille-de-route.md](docs/feuille-de-route.md).
 Spécifications : [specs/](specs/).
@@ -100,6 +101,29 @@ La première configuration compile les dépendances vcpkg (libjpeg-turbo,
 libheif + libde265, LibRaw, SQLite, xxHash, TinyEXIF) : comptez une vingtaine de
 minutes.
 
+## Fonctionnalité 002 — détection des doublons
+
+- Copies identiques (même contenu) et même photo en une autre taille, un autre
+  format, une autre compression, tournée ou légèrement retouchée, avec un niveau
+  de confiance en mots : « Identique », « Même image », « Très ressemblante ».
+  Les vidéos sont comparées par leur contenu. Une photo RAW et son JPEG sont
+  regroupés, le RAW étant gardé.
+- Écran « Doublons » (en tête de la liste des dossiers) : copie suggérée à
+  garder et sa raison, comparaison côte à côte, « Ce ne sont pas des doublons »,
+  « Garder toutes » ; les choix sont retenus.
+- Mise à la corbeille après un récapitulatif, au moins une copie toujours
+  gardée, vérification juste avant d'agir, journal et annulation
+  (Outils › Journal des opérations).
+- Analyse discrète en arrière-plan : seulement quand la bibliothèque est à
+  jour, lectures à débit limité et à faible priorité, pause sur batterie ou dans
+  la visionneuse, reprise après fermeture ; désactivable dans Outils.
+
+Photos de test pour essayer l'écran « Doublons » à la main :
+
+```powershell
+.\build\windows-release\picazoo-testdata.exe --duplicates C:\PicazooTest\Doublons
+```
+
 Pour lancer l'application depuis le dossier de compilation, les DLL de Qt doivent
 être trouvées : ajoutez `$env:QT_DIR\bin` au `PATH`, ou installez le dossier
 autonome :
@@ -118,6 +142,10 @@ Banc d'essai (photos générées dans un dossier temporaire, jamais vos dossiers
 
 ```powershell
 .\build\windows-release\picazoo-bench.exe --items 100000 --warm --index-only
+```
+
+```powershell
+.\build\windows-release\picazoo-bench.exe --items 20000 --duplicates
 ```
 
 Les tests qui ont besoin de vrais fichiers RAW, HEIC ou vidéo les cherchent dans

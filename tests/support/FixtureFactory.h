@@ -32,6 +32,14 @@ public:
     static QByteArray jpeg(const JpegSpec& spec = {});
     static QByteArray png(QSize size = {32, 32}, QColor color = Qt::green);
 
+    // Doublons (002) : scène procédurale riche en détails, reproductible par sa graine.
+    // `motion` déplace quelques formes (sujet qui bouge entre deux photos d'une rafale).
+    static QImage scene(QSize size, quint32 seed, int motion = 0);
+    // JPEG d'une image donnée, avec le bloc EXIF de `spec` (date, orientation…).
+    static QByteArray jpegOf(const QImage& image, const JpegSpec& spec = {}, int quality = 90);
+    static QString writeImage(const QString& path, const QImage& image, const JpegSpec& spec = {}, int quality = 90);
+    static QString writeImagePng(const QString& path, const QImage& image);
+
     // Écrivent un fichier et renvoient son chemin.
     static QString writeJpeg(const QString& path, const JpegSpec& spec = {});
     static QString writePng(const QString& path, QSize size = {32, 32});

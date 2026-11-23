@@ -7,7 +7,9 @@ Rectangle {
     id: root
     color: Theme.sidebar
     property var currentFolderId: 0
+    property bool duplicatesActive: false
     signal folderClicked(var id)
+    signal duplicatesClicked()
 
     onCurrentFolderIdChanged: {
         const row = folderModel.rowOfFolder(currentFolderId)
@@ -58,6 +60,64 @@ Rectangle {
                     selected: folderModel.mode === "tree"
                     onClicked: folderModel.mode = "tree"
                 }
+            }
+        }
+
+        // Entrée « Doublons » (002) : visible dès qu'un groupe existe ou pendant l'analyse.
+        Rectangle {
+            id: dupEntry
+            visible: dups !== null && (dups.groupCount > 0 || dups.active)
+            Layout.fillWidth: true
+            implicitHeight: 52
+            radius: 8
+            color: root.duplicatesActive ? Theme.accentBg : (dupMouse.containsMouse ? Theme.hover : "transparent")
+            Accessible.role: Accessible.Button
+            Accessible.name: "Doublons — " + (dups ? dups.summaryText : "")
+            RowLayout {
+                anchors.fill: parent
+                anchors.leftMargin: 8
+                anchors.rightMargin: 8
+                spacing: 10
+                Rectangle {
+                    Layout.preferredWidth: 34
+                    Layout.preferredHeight: 34
+                    radius: 7
+                    color: root.duplicatesActive ? "#24456A" : "#252B35"
+                    Label {
+                        anchors.centerIn: parent
+                        text: Theme.iconDuplicates
+                        font.family: Theme.iconFont
+                        color: root.duplicatesActive ? Theme.accentText : Theme.text3
+                        font.pixelSize: 15
+                        Accessible.ignored: true
+                    }
+                }
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    spacing: 1
+                    Label { text: "Doublons"; color: Theme.text; font.weight: Font.DemiBold }
+                    Label {
+                        Layout.fillWidth: true
+                        text: dups ? (dups.groupCount > 0 ? dups.summaryText : "Recherche en cours…") : ""
+                        elide: Text.ElideRight
+                        font.pixelSize: 12
+                        color: Theme.text3
+                    }
+                }
+                Rectangle {
+                    visible: dups !== null && dups.active
+                    Layout.preferredWidth: 8
+                    Layout.preferredHeight: 8
+                    radius: 4
+                    color: Theme.amber
+                }
+            }
+            MouseArea {
+                id: dupMouse
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onClicked: root.duplicatesClicked()
             }
         }
 

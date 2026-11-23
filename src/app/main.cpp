@@ -1,6 +1,10 @@
 #include "CrashTrace.h"
 #include "controllers/AppController.h"
+#include "controllers/DuplicatesController.h"
 #include "controllers/OnboardingController.h"
+#include "controllers/TrashController.h"
+#include "duplicates/DuplicateEngine.h"
+#include "fileops/TrashService.h"
 #include "controllers/ViewerController.h"
 #include "providers/ViewerImageProvider.h"
 #include "index/Database.h"
@@ -15,6 +19,7 @@
 
 #include <QAbstractNativeEventFilter>
 #include <QDir>
+#include <QFile>
 #include <QFileInfo>
 #include <QGuiApplication>
 #include <QPalette>
@@ -45,6 +50,17 @@ private:
     picazoo::Library& lib_;
 };
 
+// PICAZOO_LOG_FILE=<fichier> (développement) : messages de Qt et du QML dans un fichier.
+void logToFile(QtMsgType, const QMessageLogContext& ctx, const QString& msg)
+{
+    static QFile file(qEnvironmentVariable("PICAZOO_LOG_FILE"));
+    if (!file.isOpen() && !file.open(QIODevice::Append | QIODevice::Text))
+        return;
+    file.write((QString::fromUtf8(ctx.file ? ctx.file : "") + u':' + QString::number(ctx.line) + u' ' + msg +
+                QStringLiteral("\n")).toUtf8());
+    file.flush();
+}
+
 void applyDarkPalette(QGuiApplication& app)
 {
     QPalette p;
@@ -74,6 +90,8 @@ void applyDarkPalette(QGuiApplication& app)
 int main(int argc, char* argv[])
 {
     crashtrace::install();
+    if (qEnvironmentVariableIsSet("PICAZOO_LOG_FILE"))
+        qInstallMessageHandler(logToFile);
     QGuiApplication app(argc, argv);
     QGuiApplication::setApplicationName(QStringLiteral("Picazoo"));
     QGuiApplication::setOrganizationName(QStringLiteral("Picazoo"));
@@ -131,6 +149,18 @@ int main(int argc, char* argv[])
         QObject::connect(controller.get(), &AppController::sortChanged, folders.get(), &FolderTreeModel::reload);
     }
 
+    // Doublons (002) : moteur en arrière-plan, corbeille sûre. Détruits avant la bibliothèque.
+    std::unique_ptr<picazoo::DuplicateEngine> dupEngine;
+    std::unique_ptr<picazoo::TrashService> trashService;
+    std::unique_ptr<DuplicatesController> duplicates;
+    std::unique_ptr<TrashController> trash;
+    if (library) {
+        dupEngine = std::make_unique<picazoo::DuplicateEngine>(*library);
+        trashService = std::make_unique<picazoo::TrashService>(*library, *dupEngine);
+        duplicates = std::make_unique<DuplicatesController>(*library, *dupEngine);
+        trash = std::make_unique<TrashController>(*library, *dupEngine, *trashService);
+    }
+
     // Le moteur QML est détruit avant les modèles, la visionneuse et la bibliothèque qu'il
     // référence. (La visionneuse ne touche pas à son fournisseur d'images en se détruisant.)
     std::unique_ptr<ViewerController> viewer;
@@ -154,6 +184,8 @@ int main(int argc, char* argv[])
     ctx->setContextProperty(QStringLiteral("gridModel"), grid.get());
     ctx->setContextProperty(QStringLiteral("folderModel"), folders.get());
     ctx->setContextProperty(QStringLiteral("selection"), selection.get());
+    ctx->setContextProperty(QStringLiteral("dups"), duplicates.get());
+    ctx->setContextProperty(QStringLiteral("trash"), trash.get());
 
     engine.loadFromModule("Picazoo", "Main");
 
@@ -175,6 +207,14 @@ int main(int argc, char* argv[])
                      });
     if (controller && !showPath.isEmpty())
         QTimer::singleShot(300, controller.get(), [c = controller.get(), showPath] { c->showPath(showPath); });
+
+    // PICAZOO_DEV_SCREEN=duplicates|summary|log (développement) : ouvre cet écran au démarrage.
+    if (qEnvironmentVariableIsSet("PICAZOO_DEV_SCREEN") && !engine.rootObjects().isEmpty()) {
+        QObject* root = engine.rootObjects().first();
+        QTimer::singleShot(1500, root, [root] {
+            QMetaObject::invokeMethod(root, "devOpenScreen", Q_ARG(QVariant, qEnvironmentVariable("PICAZOO_DEV_SCREEN")));
+        });
+    }
 
     // PICAZOO_SCREENSHOT=<fichier.png>[;délai ms] (développement) : capture la fenêtre puis quitte.
     if (qEnvironmentVariableIsSet("PICAZOO_SCREENSHOT") && !engine.rootObjects().isEmpty()) {

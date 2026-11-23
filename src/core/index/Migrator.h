@@ -8,6 +8,6 @@ class Database;
 // Renvoie la version du schéma après migration.
 int migrateLibrary(Database& db);
 
-constexpr int kLibrarySchemaVersion = 1;
+constexpr int kLibrarySchemaVersion = 2; // 1 : 001 ; 2 : doublons (002)
 
 } // namespace picazoo

@@ -17,6 +17,12 @@ ApplicationWindow {
     property bool viewerOpen: false
     property var viewerItem: 0
 
+    // La recherche des doublons laisse la priorité à la visionneuse (research D5-5).
+    onViewerOpenChanged: {
+        if (dups)
+            viewerOpen ? dups.hold() : dups.release()
+    }
+
     function openViewer(itemId) {
         if (!itemId)
             return
@@ -61,6 +67,7 @@ ApplicationWindow {
         onOpenItem: id => win.openViewer(id)
         onAddFolder: addFolderDialog.open()
         onWatchedFolders: watchedFoldersPopup.open()
+        onOperationLog: operationLogPopup.open()
     }
 
     Loader {
@@ -77,6 +84,23 @@ ApplicationWindow {
 
     WatchedFolders {
         id: watchedFoldersPopup
+    }
+
+    OperationLog {
+        id: operationLogPopup
+    }
+
+    // Développement uniquement (PICAZOO_DEV_SCREEN), appelé depuis main.cpp.
+    function devOpenScreen(name) {
+        if (!win.ready)
+            return
+        if (name === "log") {
+            operationLogPopup.open()
+            return
+        }
+        libraryView.showGroup(0)
+        if (name === "summary")
+            libraryView.openTrashSummary()
     }
 
     Timer {
@@ -117,7 +141,7 @@ ApplicationWindow {
             if (win.viewerOpen)
                 win.closeViewer(0)
             selection.current = itemId
-            libraryView.revealItem(itemId)
+            libraryView.showItemInGrid(itemId)
             libraryView.forceActiveFocus()
         }
         function onShowMessage(message) {
@@ -145,6 +169,22 @@ ApplicationWindow {
             wrapMode: Text.WrapAtWordBoundaryOrAnywhere
             text: "La photo se trouve dans « " + addFolderQuestion.folder + " », qui ne fait pas partie de vos "
                   + "dossiers surveillés. Picazoo peut ajouter ce dossier et ses sous-dossiers à la bibliothèque."
+        }
+    }
+
+    // Doublons (002) : « Voir » depuis la visionneuse, compte rendu de la corbeille.
+    Connections {
+        target: win.ready ? dups : null
+        function onShowGroupRequested(groupId) {
+            win.viewerOpen = false
+            libraryView.showGroup(groupId)
+        }
+    }
+    Connections {
+        target: win.ready ? trash : null
+        function onFinished(message) {
+            storageDialog.message = message
+            storageDialog.open()
         }
     }
 }

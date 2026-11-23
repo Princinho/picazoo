@@ -19,6 +19,8 @@ Spec Kit (`specify` → `clarify` → `plan` → `tasks` → `implement`).
 | 004 | **Réorganisation de la bibliothèque** | Copier ou déplacer toute la bibliothèque vers un dossier choisi, avec un sous-dossier par groupe d'images liées ; aperçu avant d'agir, journal et annulation. | 001, 003 (002 recommandé avant) |
 | 005 | **Visionneuse autonome** | Comme la Visionneuse de photos Picasa : un double-clic sur une photo dans l'Explorateur ouvre seulement une visionneuse légère, quasi instantanée, sans bibliothèque ni analyse ; parcours des images du dossier avec transitions animées, zoom à la molette centré sur le curseur ; association avec Windows proposée, jamais imposée ; passage vers l'application complète. | 001 (peut passer avant 002–004) |
 
+État au 2026-11-23 : 001 livrée ; 002 implémentée (branche `claude/002-detection-doublons-b93eeb`, en revue).
+
 ## Pistes pour après (non engagées)
 
 - Étoiles, mots-clés et albums virtuels (sans toucher aux fichiers).

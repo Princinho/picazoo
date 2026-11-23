@@ -19,6 +19,10 @@ const QHash<QString, QVariant>& defaults()
         {QStringLiteral("folder_view"), QStringLiteral("by_year")},
         {QStringLiteral("last_folder_id"), QString()},
         {QStringLiteral("onboarding_done"), 0},
+        // Doublons (002)
+        {QStringLiteral("duplicates_enabled"), 1},
+        {QStringLiteral("duplicates_paused"), 0},
+        {QStringLiteral("duplicates_level_filter"), QStringLiteral("all")},
     };
     return d;
 }
@@ -29,6 +33,8 @@ const QHash<QString, QStringList>& choices()
         {QStringLiteral("folder_sort"), {QStringLiteral("date_desc"), QStringLiteral("date_asc"), QStringLiteral("name_asc")}},
         {QStringLiteral("item_sort"), {QStringLiteral("taken_asc"), QStringLiteral("name_asc")}},
         {QStringLiteral("folder_view"), {QStringLiteral("by_year"), QStringLiteral("tree")}},
+        {QStringLiteral("duplicates_level_filter"),
+         {QStringLiteral("all"), QStringLiteral("identical"), QStringLiteral("same_image"), QStringLiteral("similar")}},
     };
     return c;
 }
@@ -52,7 +58,7 @@ QVariant Settings::sanitize(const QString& key, const QVariant& value)
         const int v = value.toInt(&ok);
         return ok ? std::clamp(v, 64, 320) : defaultValue(key);
     }
-    if (key == u"onboarding_done")
+    if (key == u"onboarding_done" || key == u"duplicates_enabled" || key == u"duplicates_paused")
         return value.toInt() != 0 ? 1 : 0;
     const auto it = choices().constFind(key);
     if (it != choices().constEnd())

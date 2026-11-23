@@ -7,6 +7,8 @@ Rectangle {
     id: root
     signal addFolder()
     signal watchedFolders()
+    signal operationLog()
+    signal showDuplicates()
 
     implicitHeight: 56
     color: Theme.panel
@@ -66,6 +68,61 @@ Rectangle {
         }
 
         Item { Layout.fillWidth: true }
+
+        // Pastille des doublons (002) : analyse en cours, ou en attente (pause, batterie…).
+        Rectangle {
+            visible: !app.scanActive && dups !== null && (dups.active || dups.waiting)
+            Layout.preferredHeight: 40
+            Layout.preferredWidth: dupPill.implicitWidth + 24
+            radius: 20
+            color: Theme.amberBg
+            border.color: Theme.amberLine
+            RowLayout {
+                id: dupPill
+                anchors.verticalCenter: parent.verticalCenter
+                anchors.left: parent.left
+                anchors.leftMargin: 14
+                spacing: 12
+                Rectangle { Layout.preferredWidth: 8; Layout.preferredHeight: 8; radius: 4; color: Theme.amber }
+                Label {
+                    text: dups ? dups.progressText : ""
+                    color: Theme.amberText
+                    font.pixelSize: 13
+                }
+                Rectangle {
+                    visible: dups !== null && dups.progressValue >= 0
+                    Layout.preferredWidth: 120
+                    Layout.preferredHeight: 4
+                    radius: 2
+                    color: Theme.amberTrack
+                    Rectangle {
+                        width: parent.width * (dups ? Math.max(0, Math.min(1, dups.progressValue)) : 0)
+                        height: parent.height
+                        radius: 2
+                        color: Theme.amber
+                    }
+                }
+                RoundButton {
+                    visible: dups !== null && dups.autoSearch
+                    Layout.preferredWidth: 32
+                    Layout.preferredHeight: 32
+                    Accessible.name: dups && dups.paused ? "Reprendre la recherche des doublons" : "Mettre la recherche des doublons en pause"
+                    ToolTip.visible: hovered
+                    ToolTip.text: Accessible.name
+                    onClicked: dups.togglePause()
+                    background: Rectangle { radius: 16; color: Theme.amberTrack }
+                    contentItem: Item {
+                        Label {
+                            anchors.centerIn: parent
+                            text: dups && dups.paused ? Theme.iconPlay : Theme.iconPause
+                            font.family: Theme.iconFont
+                            font.pixelSize: 12
+                            color: Theme.amberText
+                        }
+                    }
+                }
+            }
+        }
 
         // Pastille d'analyse (ambre) : visible seulement pendant une analyse.
         Rectangle {
@@ -159,5 +216,15 @@ Rectangle {
         id: toolsMenu
         Action { text: "Dossiers surveillés…"; onTriggered: root.watchedFolders() }
         Action { text: "Réanalyser les dossiers"; shortcut: "F5"; onTriggered: app.rescan() }
+        MenuSeparator {}
+        Action { text: "Doublons"; onTriggered: root.showDuplicates() }
+        Action {
+            text: "Rechercher les doublons automatiquement"
+            checkable: true
+            checked: dups !== null && dups.autoSearch
+            onTriggered: dups.autoSearch = checked
+        }
+        Action { text: "Rechercher les doublons maintenant"; onTriggered: dups.rescan() }
+        Action { text: "Journal des opérations…"; onTriggered: root.operationLog() }
     }
 }

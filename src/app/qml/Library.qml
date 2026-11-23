@@ -8,8 +8,27 @@ FocusScope {
     signal openItem(var id)
     signal addFolder()
     signal watchedFolders()
+    signal operationLog()
 
-    function revealItem(id) { grid.revealItem(id) }
+    // Écran « Doublons » (002) à la place de la grille.
+    property bool showDuplicates: false
+
+    function revealItem(id) {
+        if (!root.showDuplicates)
+            grid.revealItem(id)
+    }
+    // « Ouvrir dans Picazoo » (005) : revient à la grille depuis l'écran « Doublons ».
+    function showItemInGrid(id) {
+        root.showDuplicates = false
+        grid.revealItem(id)
+        grid.forceActiveFocus()
+    }
+    function openTrashSummary() { duplicatesView.openSummary(false) }
+    function showGroup(groupId) {
+        root.showDuplicates = true
+        duplicatesView.focusGroup(groupId)
+        duplicatesView.forceActiveFocus()
+    }
 
     Rectangle {
         anchors.fill: parent
@@ -24,6 +43,8 @@ FocusScope {
             Layout.fillWidth: true
             onAddFolder: root.addFolder()
             onWatchedFolders: root.watchedFolders()
+            onOperationLog: root.operationLog()
+            onShowDuplicates: root.showGroup(0)
         }
 
         SplitView {
@@ -39,20 +60,44 @@ FocusScope {
                 id: folderList
                 SplitView.preferredWidth: 288
                 SplitView.minimumWidth: 200
-                currentFolderId: grid.topFolderId
-                onFolderClicked: id => grid.jumpToFolder(id)
+                currentFolderId: root.showDuplicates ? 0 : grid.topFolderId
+                duplicatesActive: root.showDuplicates
+                onFolderClicked: id => {
+                    root.showDuplicates = false
+                    grid.jumpToFolder(id)
+                    grid.forceActiveFocus()
+                }
+                onDuplicatesClicked: root.showGroup(0)
             }
 
-            ThumbGrid {
-                id: grid
+            Item {
                 SplitView.fillWidth: true
-                focus: true
-                onOpenItem: id => root.openItem(id)
+
+                ThumbGrid {
+                    id: grid
+                    anchors.fill: parent
+                    visible: !root.showDuplicates
+                    focus: !root.showDuplicates
+                    onOpenItem: id => root.openItem(id)
+                }
+
+                Duplicates {
+                    id: duplicatesView
+                    anchors.fill: parent
+                    visible: root.showDuplicates
+                    focus: root.showDuplicates
+                    onOpenItem: id => root.openItem(id)
+                    onBack: {
+                        root.showDuplicates = false
+                        grid.forceActiveFocus()
+                    }
+                }
             }
         }
 
         // Barre du bas : compteur, sélection, tris, taille des vignettes.
         Rectangle {
+            visible: !root.showDuplicates
             Layout.fillWidth: true
             Layout.preferredHeight: 52
             color: Theme.panel

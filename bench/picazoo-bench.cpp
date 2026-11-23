@@ -5,6 +5,7 @@
 //   picazoo-bench --viewer                 ouverture d'une photo de 24 Mpx et suivante (SC-004)
 //   picazoo-bench --live                   apparition d'une photo copiée (SC-005)
 //   picazoo-bench --videos <dossier>       coût d'une vignette vidéo (T061)
+//   picazoo-bench --items 20000 --duplicates   analyse des doublons après l'analyse (SC-003, 002)
 //
 // Les photos sont générées dans un dossier temporaire supprimé à la fin. Pour ne pas
 // écrire des dizaines de Go, 50 photos « maîtres » de 24 Mpx sont multipliées par
@@ -12,7 +13,10 @@
 // du système (mesure optimiste pour un disque dur, réaliste pour un SSD).
 // Le banc d'essai ne lit jamais tes vrais dossiers, sauf `--videos <dossier>` en lecture seule.
 
+#include "duplicates/DuplicateEngine.h"
+#include "duplicates/DuplicateStore.h"
 #include "index/LibraryDb.h"
+#include "platform/win/ThrottledReader.h"
 #include "jobs/ThumbnailPipeline.h"
 #include "library/Library.h"
 #include "media/Decoder.h"
@@ -163,6 +167,31 @@ void benchScan(const QString& work, int items, bool warm, bool indexOnly, QSize 
         report(QStringLiteral("Ouverture (%1 dossiers, %2 éléments)").arg(folders.size()).arg(lib->itemCount()), s, "s", 3);
         Q_UNUSED(items2);
     }
+}
+
+// 002 — analyse complète des doublons sur la bibliothèque déjà analysée par benchScan.
+// La bibliothèque générée est faite de liens physiques vers 100 photos : chaque élément est
+// candidat aux doublons exacts et lu en entier (pire cas pour le disque), puis fusionné
+// comme lien physique ; la partie visuelle compare toutes les vignettes.
+void benchDuplicates(const QString& work, int items)
+{
+    out << QStringLiteral("\nSC-003 — analyse des doublons de %1 éléments déjà indexés\n").arg(items);
+    auto lib = Library::open(QDir::toNativeSeparators(work + "/data"));
+    lib->waitForIdle(24 * 3600 * 1000, true);
+    const qint64 bytesBefore = platform::readCounters().bytes.load();
+    QElapsedTimer t;
+    t.start();
+    DuplicateEngine::Options opt;
+    opt.respectBattery = false;
+    opt.autoStart = false;
+    DuplicateEngine engine(*lib, opt);
+    engine.waitForIdle(24 * 3600 * 1000);
+    const double total = t.elapsed() / 1000.0;
+    report("Analyse des doublons (ramenée à 20 000)", total * 20000.0 / std::max(1, items) / 60.0, "min", 30);
+    out << QStringLiteral("  (%1 s ; %2 Mo lus ; %3 groupes)\n")
+               .arg(total, 0, 'f', 1)
+               .arg((platform::readCounters().bytes.load() - bytesBefore) / (1024.0 * 1024.0), 0, 'f', 0)
+               .arg(engine.store().summary().groups);
 }
 
 void benchViewer(const QString& work)
@@ -330,7 +359,8 @@ int main(int argc, char* argv[])
     QCommandLineOption indexOnly("index-only", "N'attend pas les vignettes (mesure SC-002 rapide).");
     QCommandLineOption thumbCost("thumb-cost", "Détaille le coût d'une vignette.");
     QCommandLineOption size("size", "Taille des photos générées (LxH).", "LxH", "6000x4000");
-    p.addOptions({items, warm, viewer, live, videos, keep, indexOnly, thumbCost, size});
+    QCommandLineOption duplicates("duplicates", "Mesure aussi l'analyse des doublons (SC-003 de la 002).");
+    p.addOptions({items, warm, viewer, live, videos, keep, indexOnly, thumbCost, size, duplicates});
     p.process(app);
 
     QTemporaryDir work(QDir::tempPath() + "/picazoo-bench-XXXXXX");
@@ -341,6 +371,8 @@ int main(int argc, char* argv[])
     if (n > 0) {
         const QStringList wh = p.value(size).split(u'x');
         benchScan(work.path(), n, p.isSet(warm), p.isSet(indexOnly), QSize(wh.value(0).toInt(), wh.value(1).toInt()));
+        if (p.isSet(duplicates) && !p.isSet(indexOnly))
+            benchDuplicates(work.path(), n);
     }
     if (p.isSet(thumbCost)) {
         benchThumbCost(work.path());

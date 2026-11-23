@@ -65,4 +65,12 @@ QtObject {
     readonly property string iconPlay: ""
     readonly property string iconGrid: ""
     readonly property string iconAdd: ""
+
+    // Doublons (002)
+    readonly property string iconDuplicates: ""
+    readonly property string iconStar: ""
+    readonly property string iconDelete: ""
+    readonly property string iconMore: ""
+    readonly property string iconCompare: ""
+    readonly property string iconUndo: ""
 }

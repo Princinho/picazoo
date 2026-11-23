@@ -349,6 +349,18 @@ void Library::partialScan(const QHash<RootId, QStringList>& paths)
                                    QList<FolderId>(scope.begin(), scope.end())));
 }
 
+void Library::forgetItems(const QList<ItemId>& ids)
+{
+    if (ids.isEmpty())
+        return;
+    post([this, ids] {
+        const QSet<FolderId> touched = repo_->removeItems(ids);
+        pipeline_->remove(ids);
+        thumbs_->remove(ids);
+        noteFolders(touched, true);
+    });
+}
+
 // ------------------------------------------------------------ Dossiers surveillés
 
 QList<WatchedRoot> Library::roots() const { return LibraryDb::roots(*uiDb_); }

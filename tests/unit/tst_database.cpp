@@ -18,9 +18,11 @@ private slots:
     {
         test::TempTree t;
         auto db = Database::open(t.file("library.db"));
-        QCOMPARE(migrateLibrary(*db), 1);
-        QCOMPARE(migrateLibrary(*db), 1); // idempotent
-        for (const char* table : {"watched_root", "excluded_path", "folder", "item", "settings"}) {
+        QCOMPARE(migrateLibrary(*db), kLibrarySchemaVersion);
+        QCOMPARE(migrateLibrary(*db), kLibrarySchemaVersion); // idempotent
+        for (const char* table : {"watched_root", "excluded_path", "folder", "item", "settings", "item_fingerprint",
+                                  "dup_group", "dup_member", "dup_choice", "dup_decision", "file_operation",
+                                  "file_operation_entry"}) {
             auto q = db->prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?");
             q.bind(1, QString::fromLatin1(table));
             QVERIFY2(q.step(), table);
