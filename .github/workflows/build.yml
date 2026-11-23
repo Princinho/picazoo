@@ -120,7 +120,8 @@ jobs:
 
       # ------------------------------------------- Compilation et tests
       - name: Configurer
-        run: cmake --preset windows-release -DPICAZOO_VERSION=${{ steps.version.outputs.version }} -DPICAZOO_VERSION_NUMERIC=${{ steps.version.outputs.numeric }}
+        # Guillemets obligatoires : PowerShell coupe « -DX=0.1.0.10 » au premier point.
+        run: cmake --preset windows-release "-DPICAZOO_VERSION=${{ steps.version.outputs.version }}" "-DPICAZOO_VERSION_NUMERIC=${{ steps.version.outputs.numeric }}"
 
       - name: Compiler
         run: cmake --build --preset windows-release
