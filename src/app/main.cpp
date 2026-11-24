@@ -29,6 +29,7 @@
 #include <QQuickWindow>
 #include <QTimer>
 #include <QStandardPaths>
+#include <QStyleHints>
 
 #include <memory>
 
@@ -97,6 +98,11 @@ int main(int argc, char* argv[])
     QGuiApplication::setOrganizationName(QStringLiteral("Picazoo"));
     QQuickStyle::setStyle(QStringLiteral("Fusion"));
     applyDarkPalette(app);
+    // Défilement à la molette environ 40 % plus rapide que le réglage de Windows : les listes
+    // Qt Quick avancent de wheelScrollLines × 24 px par cran. Lu à la création des vues, donc
+    // avant le chargement du QML. Le mode « un écran à la fois » de Windows est laissé tel quel.
+    if (const int lines = QGuiApplication::styleHints()->wheelScrollLines(); lines > 0 && lines < 100)
+        QGuiApplication::styleHints()->setWheelScrollLines(qMax(lines + 1, qRound(lines * 1.4)));
 
     // %LOCALAPPDATA%\Picazoo : index, vignettes, réglages. Rien n'est écrit ailleurs.
     // PICAZOO_DATA_DIR (développement) : bibliothèque séparée, pour les essais.

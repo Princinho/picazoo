@@ -129,6 +129,31 @@ private slots:
         QCOMPARE(rig.trash->journal().size(), 2);
     }
 
+    // Les liens « même image » vivent dans la mémoire du moteur : après la mise à la corbeille
+    // d'une des deux copies, la recherche repart et le groupe disparaît des comptes.
+    void trashingAVisualCopyUpdatesTheGroups()
+    {
+        Rig rig([](Rig& r) {
+            const QImage original = FixtureFactory::scene(QSize(1600, 1200), 9);
+            FixtureFactory::writeImage(r.photos.file("V/grande.jpg"), original, {}, 95);
+            FixtureFactory::writeImage(r.photos.file("W/reduite.jpg"),
+                                       original.scaled(800, 600, Qt::IgnoreAspectRatio, Qt::SmoothTransformation), {}, 90);
+        });
+        QVERIFY(rig.idle());
+        const QList<GroupId> visual = rig.engine->store().groups(LevelFilter::SameImage);
+        QCOMPARE(visual.size(), 1);
+        QCOMPARE(rig.engine->store().summary().groups, 2);
+
+        const TrashPlan plan = rig.trash->plan(visual);
+        QCOMPARE(plan.toTrash.size(), 1);
+        QVERIFY(rig.trash->execute(plan));
+        QVERIFY(rig.trash->waitForIdle(60000));
+        QVERIFY(rig.idle());
+        QCOMPARE(rig.fx.lib->itemCount(), 5);
+        QCOMPARE(rig.engine->store().groups(LevelFilter::SameImage).size(), 0);
+        QCOMPARE(rig.engine->store().summary().groups, 1); // reste le groupe identique
+    }
+
     void changedFileIsLeftInPlace()
     {
         Rig rig;

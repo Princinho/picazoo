@@ -82,6 +82,9 @@ private slots:
         QVERIFY(FileAssociations::isRegistered());
         QCOMPARE(stringValue(classes + QStringLiteral("\\Picazoo.Image\\shell\\open\\command"), {}),
                  QStringLiteral("\"C:\\Picazoo\\bin\\picazoo-viewer.exe\" \"%1\""));
+        // Les miniatures de l'Explorateur restent celles de Windows quand Picazoo est par défaut.
+        QCOMPARE(stringValue(classes + QStringLiteral("\\Picazoo.Image\\ShellEx\\{e357fccd-a995-4576-b01f-234630154e96}"), {}),
+                 QStringLiteral("{C7657C4A-9F68-40fa-A4DF-96BC08EB3551}"));
         for (const QString& ext : FileAssociations::extensions()) {
             QVERIFY2(hasValue(classes + u'\\' + ext + QStringLiteral("\\OpenWithProgids"), QStringLiteral("Picazoo.Image")),
                      qPrintable(ext));

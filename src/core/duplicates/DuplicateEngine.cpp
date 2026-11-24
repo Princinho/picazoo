@@ -141,6 +141,16 @@ void DuplicateEngine::requestRegroup()
     cv_.notify_all();
 }
 
+std::function<void()> DuplicateEngine::forgetWhenRemoved(const QList<ItemId>& ids)
+{
+    // Le fil du moteur relève la boîte à chaque tour (au plus une seconde d'attente).
+    return [inbox = forgetInbox_, ids] {
+        std::lock_guard lock(inbox->mutex);
+        for (ItemId id : ids)
+            inbox->ids.insert(id);
+    };
+}
+
 void DuplicateEngine::hold() { ++holds_; }
 
 void DuplicateEngine::release()
@@ -162,6 +172,11 @@ bool DuplicateEngine::idle() const
 {
     if (busy_.load() || workPending_.load() || regroupRequested_.load() || fullSearch_.load())
         return false;
+    {
+        std::lock_guard lock(forgetInbox_->mutex);
+        if (!forgetInbox_->ids.isEmpty())
+            return false;
+    }
     std::lock_guard lock(progressMutex_);
     return progress_.phase == DuplicateProgress::Phase::Idle;
 }
@@ -249,6 +264,15 @@ void DuplicateEngine::loop()
                 loadPrints();
                 loaded = true;
             }
+            QSet<ItemId> forgotten;
+            {
+                std::lock_guard lock(forgetInbox_->mutex);
+                forgotten.swap(forgetInbox_->ids);
+            }
+            if (!forgotten.isEmpty()) {
+                dropPrints(forgotten);
+                fullSearch_ = true; // recherche relancée sur ce qui reste
+            }
             const bool c = contentStep();
             const bool v = visualStep();
             if (c || v) {
@@ -264,7 +288,8 @@ void DuplicateEngine::loop()
                 search(prints_, true);
                 regroupRequested_ = true;
             }
-            if (regroupRequested_.exchange(false) && gatesOpen(nullptr))
+            // La demande reste en attente si les portes viennent de se fermer.
+            if (regroupRequested_.load() && gatesOpen(nullptr) && regroupRequested_.exchange(false))
                 regroup();
         } catch (const DbError& e) {
             qWarning() << "Doublons (base) :" << e.what();
@@ -330,33 +355,40 @@ bool DuplicateEngine::syncRows()
         changed += db_->changes();
         tx.commit();
     }
-    if (!stale.isEmpty()) {
-        const QSet<ItemId> gone(stale.begin(), stale.end());
-        std::vector<Print> kept;
-        kept.reserve(prints_.size());
-        for (const Print& p : prints_)
-            if (!gone.contains(p.id))
-                kept.push_back(p);
-        prints_ = std::move(kept);
-        printIndex_.clear();
-        for (size_t i = 0; i < prints_.size(); ++i)
-            printIndex_.insert(prints_[i].id, i);
-        for (auto it = edges_.begin(); it != edges_.end();) {
-            if (gone.contains(it->a) || gone.contains(it->b))
-                it = edges_.erase(it);
-            else
-                ++it;
-        }
-        rejected_.clear(); // clés sans identifiants lisibles : on revérifiera au besoin
-        for (ItemId id : stale)
-            samples_.remove(id);
-        regroupRequested_ = true;
-    }
+    if (!stale.isEmpty())
+        dropPrints(QSet<ItemId>(stale.begin(), stale.end()));
     pendingTotal_ = countPending();
     doneCount_ = 0;
     if (changed > 0)
         regroupRequested_ = true;
     return changed > 0;
+}
+
+// Retire des empreintes, liens visuels et échantillons en mémoire les éléments `gone`
+// (contenu changé, ou quittés la bibliothèque).
+void DuplicateEngine::dropPrints(const QSet<ItemId>& gone)
+{
+    if (gone.isEmpty())
+        return;
+    std::vector<Print> kept;
+    kept.reserve(prints_.size());
+    for (const Print& p : prints_)
+        if (!gone.contains(p.id))
+            kept.push_back(p);
+    prints_ = std::move(kept);
+    printIndex_.clear();
+    for (size_t i = 0; i < prints_.size(); ++i)
+        printIndex_.insert(prints_[i].id, i);
+    for (auto it = edges_.begin(); it != edges_.end();) {
+        if (gone.contains(it->a) || gone.contains(it->b))
+            it = edges_.erase(it);
+        else
+            ++it;
+    }
+    rejected_.clear(); // clés sans identifiants lisibles : on revérifiera au besoin
+    for (ItemId id : gone)
+        samples_.remove(id);
+    regroupRequested_ = true;
 }
 
 bool DuplicateEngine::contentStep()
