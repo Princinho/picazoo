@@ -17,29 +17,77 @@ FocusScope {
     property bool showInfo: true
     property real zoom: 1          // 1 = 100 % de la pleine résolution
     property bool fitMode: true
+    // Coin haut gauche de l'image dans la scène (même modèle que la visionneuse autonome).
+    property real ox: 0
+    property real oy: 0
+    // Zoom en cours, ancré sur le point de la scène (ax, ay) : de l'échelle z0 et de
+    // l'offset (sx, sy) vers l'échelle z1 et l'offset (ex, ey) (browse/ZoomMath).
+    property bool anchoring: false
+    property real ax: 0
+    property real ay: 0
+    property real z0: 1
+    property real z1: 1
+    property real sx: 0
+    property real sy: 0
+    property real ex: 0
+    property real ey: 0
     property int prevVisibility: Window.Windowed
     readonly property bool fullScreen: Window.window && Window.window.visibility === Window.FullScreen
 
     readonly property real fullW: info.width > 0 ? info.width : Math.max(1, preview.implicitWidth)
     readonly property real fullH: info.height > 0 ? info.height : Math.max(1, preview.implicitHeight)
-    readonly property real fitZoom: Math.min(1, flick.width / fullW, flick.height / fullH)
+    readonly property real stageMargin: fullScreen ? 0 : 24
+    readonly property real fitZoom: viewer.fitScale(fullW, fullH, Math.max(1, stage.width - 2 * stageMargin),
+                                                    Math.max(1, stage.height - 2 * stageMargin))
+    readonly property bool canPan: fullW * zoom > stage.width + 0.5 || fullH * zoom > stage.height + 0.5
     readonly property bool needFull: !isVideo && !isGif && preview.status === Image.Ready
                                      && zoom * fullW > preview.implicitWidth * 1.01
     readonly property bool unsupported: !isVideo && !isGif && preview.status === Image.Error
 
-    function fit() { fitMode = true; zoom = fitZoom }
-    function setZoom(z, px, py) {
-        const nz = Math.max(Math.min(fitZoom, 0.05), Math.min(8, z))
-        const r = nz / zoom
-        const ax = px === undefined ? flick.width / 2 : px
-        const ay = py === undefined ? flick.height / 2 : py
-        const cx = flick.contentX + ax
-        const cy = flick.contentY + ay
-        fitMode = false
-        zoom = nz
-        flick.contentX = Math.max(0, cx * r - ax)
-        flick.contentY = Math.max(0, cy * r - ay)
+    function clampNow() {
+        const p = viewer.clampOffset(ox, oy, zoom, fullW, fullH, stage.width, stage.height)
+        ox = p.x
+        oy = p.y
     }
+    // Retour immédiat à l'ajustement (changement d'élément).
+    function resetView() {
+        zoomAnim.stop()
+        anchoring = false
+        fitMode = true
+        zoom = fitZoom
+        clampNow()
+    }
+    // Zoom vers `target` autour du point (x, y) de la scène (centre par défaut) : en avant,
+    // le point de l'image sous le curseur y reste ; en arrière, l'image se recentre.
+    function zoomTo(target, x, y, animate) {
+        if (x === undefined) { x = stage.width / 2; y = stage.height / 2 }
+        const nz = viewer.clampScale(target, fullW, fullH, Math.max(1, stage.width - 2 * stageMargin),
+                                     Math.max(1, stage.height - 2 * stageMargin))
+        zoomAnim.stop()
+        const a = viewer.anchorOnImage(x, y, ox, oy, zoom, fullW, fullH)
+        const e = viewer.zoomEndOffset(ox, oy, zoom, nz, a.x, a.y, fullW, fullH, stage.width, stage.height)
+        ax = a.x
+        ay = a.y
+        z0 = zoom
+        z1 = nz
+        sx = ox
+        sy = oy
+        ex = e.x
+        ey = e.y
+        fitMode = nz <= fitZoom * 1.0001
+        anchoring = true
+        if (animate !== false && viewer.animations) {
+            zoomAnim.to = nz
+            zoomAnim.start()
+        } else {
+            zoom = nz
+            anchoring = false
+        }
+    }
+    // Les crans successifs s'enchaînent depuis la cible de l'animation en cours.
+    function zoomBy(factor, x, y) { zoomTo((zoomAnim.running ? zoomAnim.to : zoom) * factor, x, y) }
+    function fit() { zoomTo(fitZoom) }
+    function setZoom(z) { zoomTo(z) }
     function goNext() { viewer.next() }
     function goPrevious() { viewer.previous() }
     function toggleFullScreen() {
@@ -58,11 +106,32 @@ FocusScope {
         root.closed(viewer.current)
     }
 
-    onFitZoomChanged: if (fitMode) zoom = fitZoom
-    onItemIdChanged: fit()
+    onZoomChanged: {
+        if (anchoring) {
+            const p = viewer.zoomStepOffset(sx, sy, z0, z1, ex, ey, zoom, ax, ay)
+            ox = p.x
+            oy = p.y
+        } else {
+            clampNow()
+        }
+    }
+    onFitZoomChanged: if (fitMode && !zoomAnim.running) { zoom = fitZoom; clampNow() }
+    // La taille réelle peut arriver après le changement d'élément, sans changer l'ajustement.
+    onFullWChanged: clampNow()
+    onFullHChanged: clampNow()
+    onItemIdChanged: resetView()
     Component.onCompleted: {
         viewer.open(startItem)
-        fit()
+        resetView()
+    }
+
+    NumberAnimation {
+        id: zoomAnim
+        target: root
+        property: "zoom"
+        duration: 120
+        easing.type: Easing.OutQuad
+        onRunningChanged: if (!running) root.anchoring = false
     }
     onWidthChanged: viewer.screenSize = Qt.size(Math.round(width * Screen.devicePixelRatio), Math.round(height * Screen.devicePixelRatio))
     onHeightChanged: viewer.screenSize = Qt.size(Math.round(width * Screen.devicePixelRatio), Math.round(height * Screen.devicePixelRatio))
@@ -79,8 +148,8 @@ FocusScope {
         case Qt.Key_F: root.toggleFullScreen(); break
         case Qt.Key_I: root.showInfo = !root.showInfo; break
         case Qt.Key_Plus:
-        case Qt.Key_Equal: if (ctrl) root.setZoom(root.zoom * 1.25); else return; break
-        case Qt.Key_Minus: if (ctrl) root.setZoom(root.zoom / 1.25); else return; break
+        case Qt.Key_Equal: if (ctrl) root.zoomBy(1.25); else return; break
+        case Qt.Key_Minus: if (ctrl) root.zoomBy(1 / 1.25); else return; break
         case Qt.Key_E:
             if (ctrl && (event.modifiers & Qt.ShiftModifier)) app.revealInExplorer(viewer.current)
             else return
@@ -205,23 +274,20 @@ FocusScope {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
 
-                Flickable {
-                    id: flick
+                // Scène : l'image y est placée en (ox, oy) à l'échelle `zoom` ; molette, pincement
+                // et double-clic zooment autour du curseur, le glisser déplace l'image agrandie.
+                Item {
+                    id: stage
                     anchors.fill: parent
-                    anchors.margins: root.fullScreen ? 0 : 24
                     visible: !root.isVideo
                     clip: true
-                    contentWidth: Math.max(canvas.width, width)
-                    contentHeight: Math.max(canvas.height, height)
-                    boundsBehavior: Flickable.StopAtBounds
-                    interactive: canvas.width > width || canvas.height > height
 
                     Item {
                         id: canvas
+                        x: root.ox
+                        y: root.oy
                         width: root.fullW * root.zoom
                         height: root.fullH * root.zoom
-                        x: (flick.contentWidth - width) / 2
-                        y: (flick.contentHeight - height) / 2
 
                         // Vignette immédiate, en attendant l'aperçu (pas d'écran noir).
                         Image {
@@ -264,20 +330,66 @@ FocusScope {
                         }
                     }
 
+                    onWidthChanged: root.clampNow()
+                    onHeightChanged: root.clampNow()
+
                     WheelHandler {
-                        onWheel: event => root.setZoom(root.zoom * (event.angleDelta.y > 0 ? 1.2 : 1 / 1.2),
-                                                       point.position.x, point.position.y)
+                        onWheel: event => root.zoomBy(viewer.wheelFactor(event.angleDelta.y),
+                                                      point.position.x, point.position.y)
+                    }
+
+                    PinchHandler {
+                        target: null
+                        property real startZoom: 1
+                        onActiveChanged: if (active) startZoom = root.zoom
+                        onActiveScaleChanged: if (active)
+                            root.zoomTo(startZoom * activeScale, centroid.position.x, centroid.position.y, false)
+                    }
+
+                    DragHandler {
+                        target: null
+                        enabled: root.canPan
+                        acceptedButtons: Qt.LeftButton
+                        cursorShape: active ? Qt.ClosedHandCursor : Qt.OpenHandCursor
+                        property real startX: 0
+                        property real startY: 0
+                        onActiveChanged: if (active) {
+                            zoomAnim.stop()
+                            root.anchoring = false
+                            startX = root.ox
+                            startY = root.oy
+                        }
+                        onTranslationChanged: if (active) {
+                            const p = viewer.clampPan(startX + translation.x, startY + translation.y, root.ox, root.oy,
+                                                      root.zoom, root.fullW, root.fullH, stage.width, stage.height)
+                            root.ox = p.x
+                            root.oy = p.y
+                        }
+                    }
+
+                    HoverHandler {
+                        cursorShape: root.canPan ? Qt.OpenHandCursor : Qt.ArrowCursor
+                    }
+
+                    TapHandler {
+                        acceptedButtons: Qt.LeftButton
+                        onDoubleTapped: (eventPoint, button) => {
+                            if (root.fitMode)
+                                root.zoomTo(1, eventPoint.position.x, eventPoint.position.y)
+                            else
+                                root.zoomTo(root.fitZoom, eventPoint.position.x, eventPoint.position.y)
+                        }
                     }
                 }
 
                 BusyIndicator {
-                    anchors.centerIn: flick
+                    anchors.centerIn: stage
                     running: !root.isVideo && !root.isGif && preview.status === Image.Loading
                 }
 
                 // Élément non affichable (FR-022)
                 ColumnLayout {
-                    anchors.centerIn: flick
+                    anchors.centerIn: stage
                     visible: root.unsupported
                     spacing: 14
                     Label {
@@ -361,14 +473,14 @@ FocusScope {
                     Layout.alignment: Qt.AlignHCenter
                     spacing: 6
                     visible: !root.isVideo
-                    TextButton { text: "−"; font.pixelSize: 18; implicitWidth: 44; Accessible.name: "Zoom arrière (Ctrl −)"; onClicked: root.setZoom(root.zoom / 1.25) }
+                    TextButton { text: "−"; font.pixelSize: 18; implicitWidth: 44; Accessible.name: "Zoom arrière (Ctrl −)"; onClicked: root.zoomBy(1 / 1.25) }
                     Label {
                         Layout.preferredWidth: 64
                         horizontalAlignment: Text.AlignHCenter
                         text: Math.round(root.zoom * 100) + " %"
                         color: Theme.textSoft
                     }
-                    TextButton { text: "+"; font.pixelSize: 18; implicitWidth: 44; Accessible.name: "Zoom avant (Ctrl +)"; onClicked: root.setZoom(root.zoom * 1.25) }
+                    TextButton { text: "+"; font.pixelSize: 18; implicitWidth: 44; Accessible.name: "Zoom avant (Ctrl +)"; onClicked: root.zoomBy(1.25) }
                     TextButton { text: "Ajuster"; active: root.fitMode; onClicked: root.fit() }
                     TextButton { text: "100 %"; onClicked: root.setZoom(1) }
                 }
