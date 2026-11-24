@@ -16,6 +16,10 @@ namespace picazoo::platform {
 namespace {
 
 constexpr const wchar_t* kExeName = L"picazoo-viewer.exe";
+// IID de IThumbnailProvider, sous lequel l'Explorateur cherche le gestionnaire de miniatures.
+constexpr const wchar_t* kThumbnailHandlerKey = L"{e357fccd-a995-4576-b01f-234630154e96}";
+// « Windows Photo Thumbnail Provider » (PhotoMetadataHandler.dll).
+constexpr const wchar_t* kWindowsPhotoThumbnailProvider = L"{C7657C4A-9F68-40fa-A4DF-96BC08EB3551}";
 
 std::wstring w(const QString& s) { return s.toStdWString(); }
 
@@ -100,6 +104,11 @@ bool FileAssociations::registerApp(RegistryScope scope, const QString& viewerExe
     ok &= setString(root, prog, L"FriendlyTypeName", typeName);
     ok &= setString(root, prog + QStringLiteral("\\DefaultIcon"), nullptr, icon);
     ok &= setString(root, prog + QStringLiteral("\\shell\\open\\command"), nullptr, command);
+    // Sans gestionnaire de miniatures sur le ProgID, l'Explorateur affiche l'icône de Picazoo
+    // au lieu de l'aperçu une fois Picazoo choisi par défaut : on reprend celui de Windows
+    // (le même que « jpegfile »), qui passe par WIC et couvre donc tous les formats décodables.
+    ok &= setString(root, prog + QStringLiteral("\\ShellEx\\") + QString::fromWCharArray(kThumbnailHandlerKey), nullptr,
+                    QString::fromWCharArray(kWindowsPhotoThumbnailProvider));
 
     const QString app = classes + QStringLiteral("\\Applications\\") + QString::fromWCharArray(kExeName);
     ok &= setString(root, app, L"FriendlyAppName", QStringLiteral("Picazoo"));
