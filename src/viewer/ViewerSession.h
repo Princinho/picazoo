@@ -89,6 +89,14 @@ public:
     Q_INVOKABLE QPointF zoomAround(double ox, double oy, double scale, double newScale, double ax, double ay) const;
     Q_INVOKABLE QPointF clampOffset(double ox, double oy, double scale, double iw, double ih, double vw,
                                     double vh) const;
+    Q_INVOKABLE QPointF anchorOnImage(double ax, double ay, double ox, double oy, double scale, double iw,
+                                      double ih) const;
+    Q_INVOKABLE QPointF zoomEndOffset(double ox, double oy, double scale, double newScale, double ax, double ay,
+                                      double iw, double ih, double vw, double vh) const;
+    Q_INVOKABLE QPointF zoomStepOffset(double sx, double sy, double startScale, double endScale, double ex,
+                                       double ey, double current, double ax, double ay) const;
+    Q_INVOKABLE QPointF clampPan(double ox, double oy, double prevX, double prevY, double scale, double iw,
+                                 double ih, double vw, double vh) const;
 
     // Actions
     Q_INVOKABLE void revealInExplorer();

@@ -1,8 +1,10 @@
 #include "controllers/ViewerController.h"
 
+#include "browse/ZoomMath.h"
 #include "controllers/AppController.h"
 #include "library/Library.h"
 #include "models/GridRowModel.h"
+#include "platform/win/SystemPrefs.h"
 #include "providers/ViewerImageProvider.h"
 
 #include <QLocale>
@@ -11,7 +13,8 @@ using namespace picazoo;
 
 ViewerController::ViewerController(Library& library, GridRowModel& grid, ViewerImageProvider& images,
                                    QObject* parent)
-    : QObject(parent), lib_(library), grid_(grid), images_(images)
+    : QObject(parent), lib_(library), grid_(grid), images_(images),
+      animations_(platform::animationsEnabled())
 {
     connect(&grid_, &GridRowModel::structureChanged, this, [this] { nav_.setOrder(grid_.flatOrder()); });
     connect(&lib_, &Library::itemUpdated, this, [this](qint64 id) {
@@ -59,6 +62,47 @@ void ViewerController::previous()
 {
     if (const ItemId p = nav_.previous(current_))
         setCurrent(p);
+}
+
+double ViewerController::fitScale(double iw, double ih, double vw, double vh) const
+{
+    return zoom::fitScale({iw, ih}, {vw, vh});
+}
+
+double ViewerController::clampScale(double s, double iw, double ih, double vw, double vh) const
+{
+    return zoom::clampScale(s, {iw, ih}, {vw, vh});
+}
+
+double ViewerController::wheelFactor(double angleDeltaY) const { return zoom::wheelFactor(angleDeltaY); }
+
+QPointF ViewerController::clampOffset(double ox, double oy, double scale, double iw, double ih, double vw,
+                                      double vh) const
+{
+    return zoom::clampOffset({ox, oy}, scale, {iw, ih}, {vw, vh});
+}
+
+QPointF ViewerController::anchorOnImage(double ax, double ay, double ox, double oy, double scale, double iw, double ih) const
+{
+    return zoom::anchorOnImage({ax, ay}, {ox, oy}, scale, {iw, ih});
+}
+
+QPointF ViewerController::zoomEndOffset(double ox, double oy, double scale, double newScale, double ax, double ay,
+                                  double iw, double ih, double vw, double vh) const
+{
+    return zoom::zoomEndOffset({ox, oy}, scale, newScale, {ax, ay}, {iw, ih}, {vw, vh});
+}
+
+QPointF ViewerController::zoomStepOffset(double sx, double sy, double startScale, double endScale, double ex, double ey,
+                                   double current, double ax, double ay) const
+{
+    return zoom::zoomStepOffset({sx, sy}, startScale, endScale, {ex, ey}, current, {ax, ay});
+}
+
+QPointF ViewerController::clampPan(double ox, double oy, double prevX, double prevY, double scale, double iw, double ih,
+                             double vw, double vh) const
+{
+    return zoom::clampPan({ox, oy}, {prevX, prevY}, scale, {iw, ih}, {vw, vh});
 }
 
 void ViewerController::refresh()

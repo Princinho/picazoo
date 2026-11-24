@@ -53,6 +53,70 @@ private slots:
         QCOMPARE(zoom::clampOffset({0, 0}, 0.25, image, view), QPointF((1920 - 1000) / 2.0, (1200 - 750) / 2.0));
         QCOMPARE(zoom::centered(0.25, image, view), QPointF(460, 225));
     }
+
+    // Depuis l'ajustement (image plus petite que la vue, centrée), chaque cran de zoom
+    // avant garde le point sous le curseur exactement en place, y compris à chaque image
+    // intermédiaire de l'animation — l'image n'est plus recentrée en cours de route.
+    void zoomInFromFitKeepsCursorPoint()
+    {
+        const QSizeF image(6000, 4000), view(1600, 900);
+        const QSizeF fitView(view.width() - 48, view.height() - 48);
+        double scale = zoom::fitScale(image, fitView);
+        QPointF offset = zoom::clampOffset({}, scale, image, view);
+        const QPointF anchor = offset + QPointF(600, 400) * scale; // haut gauche de l'image
+        const QPointF imagePoint = (anchor - offset) / scale;
+        for (int notch = 0; notch < 10; ++notch) {
+            const double next = zoom::clampScale(scale * zoom::wheelFactor(120), image, fitView);
+            const QPointF a = zoom::anchorOnImage(anchor, offset, scale, image);
+            QCOMPARE(a, anchor);
+            const QPointF end = zoom::zoomEndOffset(offset, scale, next, a, image, view);
+            for (int f = 1; f <= 8; ++f) {
+                const double current = scale + (next - scale) * f / 8.0;
+                const QPointF o = zoom::zoomStepOffset(offset, scale, next, end, current, a);
+                const double drift = QLineF(o + imagePoint * current, anchor).length();
+                QVERIFY2(drift < 0.01, qPrintable(QStringLiteral("cran %1, image %2 : écart %3").arg(notch).arg(f).arg(drift)));
+            }
+            offset = end;
+            scale = next;
+        }
+    }
+
+    // Le zoom arrière ramène l'image dans ses bornes sans saut, centrée à l'ajustement.
+    void zoomOutReturnsToCenteredFit()
+    {
+        const QSizeF image(6000, 4000), view(1600, 900);
+        const QSizeF fitView(view.width() - 48, view.height() - 48);
+        const double fit = zoom::fitScale(image, fitView);
+        const QPointF anchor(300, 200);
+        // État laissé par un zoom avant près d'un coin : du vide en haut à gauche.
+        const double scale = fit * 1.25;
+        const QPointF offset(150, 60);
+        const QPointF end = zoom::zoomEndOffset(offset, scale, fit, anchor, image, view);
+        QCOMPARE(end, zoom::centered(fit, image, view));
+        // Première image de l'animation : aucun saut.
+        const double first = scale + (fit - scale) / 100.0;
+        QVERIFY(QLineF(zoom::zoomStepOffset(offset, scale, fit, end, first, anchor), offset).length() < 2.0);
+        QCOMPARE(zoom::zoomStepOffset(offset, scale, fit, end, fit, anchor), end);
+    }
+
+    // Curseur à côté de l'image : on zoome autour du bord le plus proche, l'image reste visible.
+    void anchorOutsideImageSnapsToEdge()
+    {
+        const QSizeF image(1000, 1000);
+        const QPointF offset(300, 100);
+        QCOMPARE(zoom::anchorOnImage({50, 400}, offset, 0.5, image), QPointF(300, 400));
+        QCOMPARE(zoom::anchorOnImage({900, 900}, offset, 0.5, image), QPointF(800, 600));
+    }
+
+    // Le déplacement n'agrandit jamais un vide laissé par le zoom, mais peut le réduire.
+    void panNeverWidensAGap()
+    {
+        const QSizeF image(4000, 3000), view(1920, 1200);
+        const QPointF previous(100, -500); // 100 px de vide à gauche
+        QCOMPARE(zoom::clampPan({300, -500}, previous, 1.0, image, view), QPointF(100, -500));
+        QCOMPARE(zoom::clampPan({-50, -500}, previous, 1.0, image, view), QPointF(-50, -500));
+        QCOMPARE(zoom::clampPan({-9000, 400}, previous, 1.0, image, view), QPointF(1920 - 4000, 0));
+    }
 };
 
 QTEST_GUILESS_MAIN(TstZoomMath)

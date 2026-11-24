@@ -33,4 +33,24 @@ QPointF clampOffset(QPointF offset, double scale, QSizeF image, QSizeF view);
 // Offset qui centre l'image dans la vue.
 QPointF centered(double scale, QSizeF image, QSizeF view);
 
+// Point de la vue autour duquel zoomer : `anchor`, ramené sur le bord de l'image quand
+// le curseur est à côté (un zoom avant ancré dans le vide pousserait l'image hors de vue).
+QPointF anchorOnImage(QPointF anchor, QPointF offset, double scale, QSizeF image);
+
+// Offset à la fin d'un zoom de `scale` à `newScale` autour de `anchor`. En avant, le
+// point image sous `anchor` y reste exactement, sans recentrage (le vide laissé autour
+// d'une image encore plus petite que la vue ne fait que diminuer). En arrière, l'image
+// regagne les bornes de clampOffset (centrée à l'ajustement).
+QPointF zoomEndOffset(QPointF offset, double scale, double newScale, QPointF anchor, QSizeF image, QSizeF view);
+
+// Offset pendant ce zoom (animation, pincement), à l'échelle intermédiaire `current` :
+// ancré sur `anchor`, plus la correction de fin de zoom au prorata du chemin parcouru,
+// pour qu'il n'y ait aucun saut.
+QPointF zoomStepOffset(QPointF startOffset, double startScale, double endScale, QPointF endOffset,
+                       double current, QPointF anchor);
+
+// Borne d'un déplacement à la souris : comme clampOffset, mais un écart déjà présent
+// (laissé par un zoom avant) peut subsister sans jamais s'aggraver.
+QPointF clampPan(QPointF offset, QPointF previous, double scale, QSizeF image, QSizeF view);
+
 } // namespace picazoo::zoom

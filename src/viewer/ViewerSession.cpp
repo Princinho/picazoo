@@ -338,6 +338,29 @@ QPointF ViewerSession::clampOffset(double ox, double oy, double scale, double iw
     return zoom::clampOffset({ox, oy}, scale, {iw, ih}, {vw, vh});
 }
 
+QPointF ViewerSession::anchorOnImage(double ax, double ay, double ox, double oy, double scale, double iw, double ih) const
+{
+    return zoom::anchorOnImage({ax, ay}, {ox, oy}, scale, {iw, ih});
+}
+
+QPointF ViewerSession::zoomEndOffset(double ox, double oy, double scale, double newScale, double ax, double ay,
+                                  double iw, double ih, double vw, double vh) const
+{
+    return zoom::zoomEndOffset({ox, oy}, scale, newScale, {ax, ay}, {iw, ih}, {vw, vh});
+}
+
+QPointF ViewerSession::zoomStepOffset(double sx, double sy, double startScale, double endScale, double ex, double ey,
+                                   double current, double ax, double ay) const
+{
+    return zoom::zoomStepOffset({sx, sy}, startScale, endScale, {ex, ey}, current, {ax, ay});
+}
+
+QPointF ViewerSession::clampPan(double ox, double oy, double prevX, double prevY, double scale, double iw, double ih,
+                             double vw, double vh) const
+{
+    return zoom::clampPan({ox, oy}, {prevX, prevY}, scale, {iw, ih}, {vw, vh});
+}
+
 // --- Actions
 
 void ViewerSession::revealInExplorer()

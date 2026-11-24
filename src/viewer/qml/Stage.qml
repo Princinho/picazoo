@@ -193,12 +193,17 @@ Item {
             property real ox: 0
             property real oy: 0
             property bool fitMode: true
-            // Zoom ancré : le point image (px, py) reste sous le point écran (ax, ay).
+            // Zoom en cours, ancré sur le point écran (ax, ay) : de l'échelle s0 et de l'offset
+            // (sx, sy) vers l'échelle s1 et l'offset (ex, ey) (browse/ZoomMath).
             property bool anchoring: false
             property real ax: 0
             property real ay: 0
-            property real px: 0
-            property real py: 0
+            property real s0: 1
+            property real s1: 1
+            property real sx: 0
+            property real sy: 0
+            property real ex: 0
+            property real ey: 0
             property alias zoomAnim: zoomAnim
 
             function clampNow() {
@@ -217,10 +222,17 @@ Item {
                 const ns = session.clampScale(target, fw, fh, Math.max(1, width - 2 * stage.margin),
                                               Math.max(1, height - 2 * stage.margin))
                 zoomAnim.stop()
-                ax = x
-                ay = y
-                px = (x - ox) / s
-                py = (y - oy) / s
+                // En avant, le point de l'image sous le curseur y reste ; en arrière, l'image se recentre.
+                const a = session.anchorOnImage(x, y, ox, oy, s, fw, fh)
+                const e = session.zoomEndOffset(ox, oy, s, ns, a.x, a.y, fw, fh, width, height)
+                ax = a.x
+                ay = a.y
+                s0 = s
+                s1 = ns
+                sx = ox
+                sy = oy
+                ex = e.x
+                ey = e.y
                 fitMode = ns <= fitS * 1.0001
                 anchoring = true
                 if (animate && stage.animations) {
@@ -233,9 +245,9 @@ Item {
             }
 
             onSChanged: if (anchoring) {
-                ox = ax - s * px
-                oy = ay - s * py
-                clampNow()
+                const p = session.zoomStepOffset(sx, sy, s0, s1, ex, ey, s, ax, ay)
+                ox = p.x
+                oy = p.y
             }
             onFitSChanged: if (fitMode) { s = fitS; clampNow() }
             onWidthChanged: clampNow()
@@ -341,9 +353,11 @@ Item {
             startY = stage.current.oy
         }
         onTranslationChanged: if (active && stage.current) {
-            stage.current.ox = startX + translation.x
-            stage.current.oy = startY + translation.y
-            stage.current.clampNow()
+            const c = stage.current
+            const p = session.clampPan(startX + translation.x, startY + translation.y, c.ox, c.oy,
+                                       c.s, c.fw, c.fh, c.width, c.height)
+            c.ox = p.x
+            c.oy = p.y
         }
     }
 

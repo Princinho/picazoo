@@ -6,6 +6,7 @@
 #include "library/Navigation.h"
 
 #include <QObject>
+#include <QPointF>
 #include <QSize>
 #include <QVariantMap>
 
@@ -25,6 +26,7 @@ class ViewerController : public QObject {
     Q_PROPERTY(bool hasPrevious READ hasPrevious NOTIFY currentChanged)
     Q_PROPERTY(bool hasNext READ hasNext NOTIFY currentChanged)
     Q_PROPERTY(QSize screenSize READ screenSize WRITE setScreenSize NOTIFY screenSizeChanged)
+    Q_PROPERTY(bool animations READ animations CONSTANT) // « Afficher les animations dans Windows »
 
 public:
     ViewerController(picazoo::Library& library, GridRowModel& grid, ViewerImageProvider& images,
@@ -45,6 +47,22 @@ public:
     Q_INVOKABLE void previous();
     Q_INVOKABLE void refresh();
 
+    // Zoom : mêmes calculs que la visionneuse autonome (browse/ZoomMath).
+    bool animations() const { return animations_; }
+    Q_INVOKABLE double fitScale(double iw, double ih, double vw, double vh) const;
+    Q_INVOKABLE double clampScale(double s, double iw, double ih, double vw, double vh) const;
+    Q_INVOKABLE double wheelFactor(double angleDeltaY) const;
+    Q_INVOKABLE QPointF clampOffset(double ox, double oy, double scale, double iw, double ih, double vw,
+                                    double vh) const;
+    Q_INVOKABLE QPointF anchorOnImage(double ax, double ay, double ox, double oy, double scale, double iw,
+                                      double ih) const;
+    Q_INVOKABLE QPointF zoomEndOffset(double ox, double oy, double scale, double newScale, double ax, double ay,
+                                      double iw, double ih, double vw, double vh) const;
+    Q_INVOKABLE QPointF zoomStepOffset(double sx, double sy, double startScale, double endScale, double ex,
+                                       double ey, double current, double ax, double ay) const;
+    Q_INVOKABLE QPointF clampPan(double ox, double oy, double prevX, double prevY, double scale, double iw,
+                                 double ih, double vw, double vh) const;
+
 signals:
     void currentChanged();
     void screenSizeChanged();
@@ -62,4 +80,5 @@ private:
     QVariantMap info_;
     QVariantList strip_;
     QSize screen_{1920, 1080};
+    bool animations_ = true;
 };
