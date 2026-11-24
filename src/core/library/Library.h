@@ -87,8 +87,9 @@ public:
     void post(std::function<void()> task);
 
     // Retire ces éléments de l'index et leurs vignettes, sans toucher au disque (fichiers
-    // mis à la corbeille par la 002). Asynchrone, sur le thread d'indexation.
-    void forgetItems(const QList<ItemId>& ids);
+    // mis à la corbeille par la 002). Asynchrone, sur le thread d'indexation ; `done` y est
+    // appelée une fois les éléments retirés de l'index.
+    void forgetItems(const QList<ItemId>& ids, std::function<void()> done = {});
 
     // Réessaie les racines indisponibles (toutes les 30 s, et sur WM_DEVICECHANGE).
     void checkRoots();

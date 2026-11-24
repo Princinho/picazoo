@@ -52,6 +52,9 @@ public:
     Q_INVOKABLE void togglePause();
     Q_INVOKABLE void revealInExplorer(qint64 itemId);
     Q_INVOKABLE void openWithDefaultApp(qint64 itemId);
+    // Ouvre l'élément dans la visionneuse autonome plein écran (005, picazoo-viewer.exe).
+    // Faux si la visionneuse est introuvable ou n'a pas pu démarrer.
+    Q_INVOKABLE bool openInStandaloneViewer(qint64 itemId);
     Q_INVOKABLE QString itemPath(qint64 itemId) const;
     Q_INVOKABLE QVariantMap itemInfo(qint64 itemId) const { return describe(lib_, itemId); }
     static QVariantMap describe(picazoo::Library& lib, qint64 itemId);

@@ -160,16 +160,33 @@ Rectangle {
                 border.color: selected ? Theme.accentText : (modelData.keep ? Theme.accent : Theme.line)
                 border.width: selected ? 2 : 1
 
+                // Clic : sélectionne la copie et coche / décoche « À la corbeille » ; la bascule
+                // attend le délai du double-clic pour qu'un double-clic ne la déclenche pas.
+                // Double-clic : visionneuse autonome plein écran (visionneuse intégrée à défaut).
+                Timer {
+                    id: clickTimer
+                    interval: Qt.styleHints.mouseDoubleClickInterval
+                    onTriggered: row.setKeep(card.modelData, !card.modelData.keep)
+                }
                 MouseArea {
                     anchors.fill: parent
                     acceptedButtons: Qt.LeftButton | Qt.RightButton
+                    cursorShape: Qt.PointingHandCursor
                     onClicked: mouse => {
                         row.activated()
                         row.currentCopy = card.index
                         if (mouse.button === Qt.RightButton)
                             copyMenu.popup()
+                        else
+                            clickTimer.restart()
                     }
-                    onDoubleClicked: row.openItem(card.modelData.id)
+                    onDoubleClicked: mouse => {
+                        if (mouse.button !== Qt.LeftButton)
+                            return
+                        clickTimer.stop()
+                        if (!app.openInStandaloneViewer(card.modelData.id))
+                            row.openItem(card.modelData.id)
+                    }
                 }
 
                 ColumnLayout {

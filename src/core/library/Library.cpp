@@ -349,15 +349,20 @@ void Library::partialScan(const QHash<RootId, QStringList>& paths)
                                    QList<FolderId>(scope.begin(), scope.end())));
 }
 
-void Library::forgetItems(const QList<ItemId>& ids)
+void Library::forgetItems(const QList<ItemId>& ids, std::function<void()> done)
 {
-    if (ids.isEmpty())
+    if (ids.isEmpty()) {
+        if (done)
+            done();
         return;
-    post([this, ids] {
+    }
+    post([this, ids, done = std::move(done)] {
         const QSet<FolderId> touched = repo_->removeItems(ids);
         pipeline_->remove(ids);
         thumbs_->remove(ids);
         noteFolders(touched, true);
+        if (done)
+            done();
     });
 }
 

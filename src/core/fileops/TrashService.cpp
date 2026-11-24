@@ -390,7 +390,9 @@ void TrashService::runTrash(OperationId id, TrashPlan plan)
             emit operationProgress(id, done, total);
         }, Qt::QueuedConnection);
     }
-    lib_.forgetItems(trashed); // FR-023 : la bibliothèque suit immédiatement
+    // FR-023 : la bibliothèque suit immédiatement. La recherche des doublons repart une fois
+    // les éléments retirés de l'index, pour que groupes et comptes reflètent ce qui reste.
+    lib_.forgetItems(trashed, engine_.forgetWhenRemoved(trashed));
     if (changed)
         engine_.rescanAll();
     engine_.requestRegroup();

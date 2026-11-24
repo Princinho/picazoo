@@ -7,10 +7,12 @@
 #include "platform/win/ShellActions.h"
 #include "video/VideoProbe.h"
 
+#include <QCoreApplication>
 #include <QDateTime>
 #include <QDir>
 #include <QFileInfo>
 #include <QLocale>
+#include <QProcess>
 #include <QTimeZone>
 
 #include <algorithm>
@@ -196,6 +198,18 @@ void AppController::openWithDefaultApp(qint64 itemId)
     const QString p = itemPath(itemId);
     if (!p.isEmpty())
         platform::openWithDefaultApp(p);
+}
+
+bool AppController::openInStandaloneViewer(qint64 itemId)
+{
+    const QString p = itemPath(itemId);
+    if (p.isEmpty() || !QFileInfo::exists(p))
+        return false;
+    // Installée à côté de picazoo.exe (bin/), comme dans le dossier de compilation.
+    const QString exe = QDir(QCoreApplication::applicationDirPath()).filePath(QStringLiteral("picazoo-viewer.exe"));
+    if (!QFileInfo::exists(exe))
+        return false;
+    return QProcess::startDetached(exe, {QDir::toNativeSeparators(p)});
 }
 
 QString AppController::formatDuration(qint64 ms) { return picazoo::formatDuration(ms); }

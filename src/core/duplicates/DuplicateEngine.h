@@ -23,6 +23,7 @@
 #include <array>
 #include <atomic>
 #include <condition_variable>
+#include <functional>
 #include <memory>
 #include <mutex>
 #include <optional>
@@ -57,6 +58,10 @@ public:
     bool isPaused() const { return userPaused_.load(); }
     void rescanAll();              // « Rechercher maintenant »
     void requestRegroup();         // après une décision ou une mise à la corbeille
+    // Rappel à passer à Library::forgetItems (mise à la corbeille) : une fois les éléments
+    // retirés de l'index, le moteur les oublie et relance la recherche, pour que groupes et
+    // comptes reflètent ce qui reste. Sûr depuis n'importe quel fil, même moteur détruit.
+    std::function<void()> forgetWhenRemoved(const QList<ItemId>& ids);
     void hold();                   // visionneuse active (cumulable)
     void release();
 
@@ -86,6 +91,7 @@ private:
     bool gatesOpen(QString* reason) const;
     void poke();
     bool syncRows();
+    void dropPrints(const QSet<ItemId>& gone);
     bool contentStep();
     bool visualStep();
     void loadPrints();
@@ -114,6 +120,13 @@ private:
     std::atomic<bool> fullSearch_{true};
     std::atomic<bool> busy_{false};
     std::atomic<bool> libraryWasBusy_{true};
+    // Éléments quittés la bibliothèque, à retirer des empreintes en mémoire (forgetWhenRemoved).
+    // Partagé avec les rappels, qui peuvent survivre au moteur.
+    struct ForgetInbox {
+        std::mutex mutex;
+        QSet<ItemId> ids;
+    };
+    std::shared_ptr<ForgetInbox> forgetInbox_ = std::make_shared<ForgetInbox>();
 
     // Progression (lue par l'interface)
     mutable std::mutex progressMutex_;
