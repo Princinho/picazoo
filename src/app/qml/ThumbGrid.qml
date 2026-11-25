@@ -7,7 +7,22 @@ FocusScope {
     id: root
     signal openItem(var id)
     property var topFolderId: 0
-    property var menuItem: 0
+
+    // 007 : menu de la sélection (ou de l'élément sous le curseur), ouvert au clic droit, par la
+    // touche Menu ou Maj+F10 ; `near` : ouvrir près de la vignette courante (clavier).
+    function openItemMenu(near) {
+        const ids = selection.selectedIds()
+        if (ids.length === 0)
+            return
+        if (near) {
+            const row = gridModel.rowOfItem(selection.current || ids[0])
+            const rowItem = row >= 0 ? list.itemAtIndex(row) : null
+            itemMenu.openFor(ids, rowItem, 24, rowItem ? rowItem.height / 2 : 0)
+        } else {
+            itemMenu.openFor(ids)
+        }
+    }
+    function folderShown() { return selection.current ? gridModel.folderOfItem(selection.current) : root.topFolderId }
 
     function jumpToFolder(folderId) {
         const row = gridModel.headerRowOfFolder(folderId)
@@ -83,12 +98,6 @@ FocusScope {
             case Qt.Key_Right: moved = selection.move(1, 0, extend); break
             case Qt.Key_Up: moved = selection.move(0, -1, extend); break
             case Qt.Key_Down: moved = selection.move(0, 1, extend); break
-            case Qt.Key_Return:
-            case Qt.Key_Enter:
-                if (selection.current)
-                    root.openItem(selection.current)
-                event.accepted = true
-                return
             case Qt.Key_Escape:
                 selection.clear()
                 event.accepted = true
@@ -106,6 +115,42 @@ FocusScope {
                     app.revealInExplorer(selection.current)
                     event.accepted = true
                 }
+                return
+            // 007 : clavier des menus contextuels (contracts/ui-contract.md).
+            case Qt.Key_Menu:
+                root.openItemMenu(true)
+                event.accepted = true
+                return
+            case Qt.Key_F10:
+                if (event.modifiers & Qt.ShiftModifier) {
+                    root.openItemMenu(true)
+                    event.accepted = true
+                }
+                return
+            case Qt.Key_Delete:
+                if (selection.count > 0)
+                    trash.prepareItems(selection.selectedIds())
+                event.accepted = true
+                return
+            case Qt.Key_C:
+                if ((event.modifiers & Qt.ControlModifier) && selection.count > 0) {
+                    if (event.modifiers & Qt.ShiftModifier)
+                        app.copyPaths(selection.selectedIds())
+                    else
+                        app.copyItems(selection.selectedIds())
+                    event.accepted = true
+                }
+                return
+            case Qt.Key_Return:
+            case Qt.Key_Enter:
+                if ((event.modifiers & Qt.AltModifier) && selection.count > 0) {
+                    app.showProperties(selection.selectedIds())
+                    event.accepted = true
+                    return
+                }
+                if (selection.current)
+                    root.openItem(selection.current)
+                event.accepted = true
                 return
             default:
                 return
@@ -131,14 +176,20 @@ FocusScope {
             height: rowHeight
 
             // Sélection au cadre (FR-015) : glisser depuis un espace vide de la grille.
+            // 007 : clic droit dans un espace vide = menu de la vue.
             MouseArea {
                 anchors.fill: parent
                 z: -1
                 preventStealing: true
+                acceptedButtons: Qt.LeftButton | Qt.RightButton
                 property real startX: 0
                 property real startY: 0
                 property bool additive: false
                 onPressed: mouse => {
+                    if (mouse.button === Qt.RightButton) {
+                        viewMenu.popup()
+                        return
+                    }
                     startX = mouse.x
                     startY = rowItem.rowY + mouse.y
                     additive = (mouse.modifiers & Qt.ControlModifier) !== 0
@@ -153,6 +204,8 @@ FocusScope {
                     list.forceActiveFocus()
                 }
                 onPositionChanged: mouse => {
+                    if (!band.visible)
+                        return
                     const p = mapToItem(list.contentItem, mouse.x, mouse.y)
                     band.x = Math.min(band.originX, p.x)
                     band.y = Math.min(band.originY, p.y)
@@ -164,6 +217,8 @@ FocusScope {
                 onReleased: band.visible = false
                 onCanceled: band.visible = false
                 onClicked: mouse => {
+                    if (mouse.button === Qt.RightButton)
+                        return
                     const dragged = band.width > 4 || band.height > 4
                     if (!dragged && !(mouse.modifiers & Qt.ControlModifier))
                         selection.clear()
@@ -240,10 +295,7 @@ FocusScope {
                         cell: rowItem.rowItems[index] || ({})
                         size: gridModel.thumbSize
                         onActivated: id => root.openItem(id)
-                        onContextMenu: id => {
-                            root.menuItem = id
-                            contextMenu.popup()
-                        }
+                        onContextMenu: id => root.openItemMenu(false)
                     }
                 }
             }
@@ -262,19 +314,43 @@ FocusScope {
         border.width: 1
     }
 
+    ItemContextMenu {
+        id: itemMenu
+        onOpenItem: id => root.openItem(id)
+    }
+
+    // Espace sous les dernières vignettes : même menu de vue.
+    TapHandler {
+        acceptedButtons: Qt.RightButton
+        onTapped: eventPoint => {
+            if (eventPoint.position.y > list.contentHeight - list.contentY)
+                viewMenu.popup()
+        }
+    }
+
     Menu {
-        id: contextMenu
-        MenuItem {
-            text: "Ouvrir"
-            onTriggered: root.openItem(root.menuItem)
+        id: viewMenu
+        width: 330
+        PzMenuItem { text: "Agrandir les vignettes"; hint: "Ctrl++"; onTriggered: gridModel.thumbSize = gridModel.thumbSize + 32 }
+        PzMenuItem { text: "Réduire les vignettes"; hint: "Ctrl+−"; onTriggered: gridModel.thumbSize = gridModel.thumbSize - 32 }
+        PzMenuItem {
+            text: "Tout sélectionner"
+            hint: "Ctrl+A"
+            enabled: root.folderShown() !== 0
+            onTriggered: selection.selectFolder(root.folderShown())
         }
-        MenuItem {
-            text: "Afficher dans l'Explorateur"
-            onTriggered: app.revealInExplorer(root.menuItem)
-        }
-        MenuItem {
-            text: "Ouvrir avec l'application par défaut"
-            onTriggered: app.openWithDefaultApp(root.menuItem)
+        MenuSeparator {}
+        PzMenuItem {
+            readonly property string folderPath: {
+                const f = root.folderShown()
+                const id = selection.current || (f ? gridModel.firstItemOfFolder(f) : 0)
+                const p = id ? app.itemPath(id) : ""
+                return p ? p.substring(0, p.lastIndexOf("\\")) : ""
+            }
+            text: "Ouvrir le dossier dans l'Explorateur"
+            enabled: folderPath !== ""
+            tip: folderPath === "" ? "aucun dossier affiché" : ""
+            onTriggered: app.revealFolder(folderPath)
         }
     }
 

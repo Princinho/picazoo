@@ -57,7 +57,8 @@ QtObject {
                                        ? "Segoe Fluent Icons" : "Segoe MDL2 Assets"
     readonly property string iconFolder: ""
     readonly property string iconFullScreen: ""
-    readonly property string iconInfo: ""
+    readonly property string iconExitFullScreen: "" // BackToWindow (007)
+    readonly property string iconInfo:""
     readonly property string iconBack: ""
     readonly property string iconPrev: ""
     readonly property string iconNext: ""

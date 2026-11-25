@@ -2,9 +2,11 @@
 
 // Contrôleur QML de la visionneuse autonome : parcours du dossier, photo courante,
 // informations, réglages, proposition d'association, passerelles vers Windows et
-// vers picazoo.exe. Ne touche jamais la bibliothèque.
+// vers picazoo.exe. Ne lit pas la bibliothèque ; 007 : une mise à la corbeille est inscrite au
+// journal des opérations de Picazoo (library.db, ouverte seulement à ce moment-là).
 
 #include "browse/FolderBrowser.h"
+#include "platform/win/Wallpaper.h"
 
 #include <QElapsedTimer>
 #include <QHash>
@@ -18,8 +20,14 @@
 #include <QVariantList>
 #include <QVariantMap>
 
+#include <memory>
+#include <optional>
+
 class FileImageProvider;
 class ViewerSettings;
+namespace picazoo {
+class Database;
+}
 
 class ViewerSession : public QObject {
     Q_OBJECT
@@ -39,6 +47,8 @@ class ViewerSession : public QObject {
     Q_PROPERTY(bool proposalVisible READ proposalVisible NOTIFY proposalVisibleChanged)
     Q_PROPERTY(bool registered READ registered NOTIFY registeredChanged)
     Q_PROPERTY(QScreen* screen READ screen CONSTANT)
+    // 007 : la photo affichée est-elle sur un disque avec corbeille ? 1 oui, 0 non, -1 inconnu.
+    Q_PROPERTY(int recycleState READ recycleState NOTIFY recycleStateChanged)
 
 public:
     ViewerSession(FileImageProvider& images, ViewerSettings& settings, QScreen* screen, QObject* parent = nullptr);
@@ -82,21 +92,6 @@ public:
     Q_INVOKABLE void last();
     Q_INVOKABLE void goTo(int index);
 
-    // Zoom (research V10, browse/ZoomMath)
-    Q_INVOKABLE double fitScale(double iw, double ih, double vw, double vh) const;
-    Q_INVOKABLE double clampScale(double s, double iw, double ih, double vw, double vh) const;
-    Q_INVOKABLE double wheelFactor(double angleDeltaY) const;
-    Q_INVOKABLE QPointF zoomAround(double ox, double oy, double scale, double newScale, double ax, double ay) const;
-    Q_INVOKABLE QPointF clampOffset(double ox, double oy, double scale, double iw, double ih, double vw,
-                                    double vh) const;
-    Q_INVOKABLE QPointF anchorOnImage(double ax, double ay, double ox, double oy, double scale, double iw,
-                                      double ih) const;
-    Q_INVOKABLE QPointF zoomEndOffset(double ox, double oy, double scale, double newScale, double ax, double ay,
-                                      double iw, double ih, double vw, double vh) const;
-    Q_INVOKABLE QPointF zoomStepOffset(double sx, double sy, double startScale, double endScale, double ex,
-                                       double ey, double current, double ax, double ay) const;
-    Q_INVOKABLE QPointF clampPan(double ox, double oy, double prevX, double prevY, double scale, double iw,
-                                 double ih, double vw, double vh) const;
 
     // Actions
     Q_INVOKABLE void revealInExplorer();
@@ -104,6 +99,20 @@ public:
     Q_INVOKABLE void openWithDefault();
     Q_INVOKABLE void openInPicazoo();
     Q_INVOKABLE void firstImageShown();
+
+    // 007 : menu de l'image (contracts/ui-contract.md)
+    Q_INVOKABLE void copyImage();
+    Q_INVOKABLE void copyPath();
+    Q_INVOKABLE void showProperties();
+    Q_INVOKABLE bool canSetWallpaper() const;
+    Q_INVOKABLE void setWallpaper();
+    Q_INVOKABLE void undoWallpaper();
+    Q_INVOKABLE void requestRecycleInfo();
+    int recycleState() const { return recycleState_; }
+    // Mise à la corbeille de la photo affichée, inscrite au journal de Picazoo (library.db, ouverte
+    // à ce moment-là) ; trashed() ou message() annonce le résultat.
+    Q_INVOKABLE void trashCurrent();
+    Q_INVOKABLE void undoTrash(qint64 operationId);
 
     // Association (FR-029 à FR-032)
     Q_INVOKABLE QVariantList formatFamilies() const;
@@ -127,6 +136,10 @@ signals:
     void raiseRequested();
     void message(const QString& text);
     void quitRequested();
+    void recycleStateChanged();
+    void trashed(qint64 operationId, const QString& name);
+    void wallpaperChanged(bool ok, bool restorable);
+    void wallpaperRestored(bool ok);
 
 private:
     void onCurrentChanged();
@@ -151,4 +164,11 @@ private:
     QElapsedTimer sinceOpen_;
     QHash<QString, qint64> stamps_;
     QThreadPool infoPool_;
+    // 007 : opérations sur les fichiers, une à la fois, hors du fil de l'interface.
+    QThreadPool fileOps_;
+    std::shared_ptr<picazoo::Database> db_;
+    int recycleState_ = -1;
+    QString recycleFor_;
+    QString lastTrashed_;
+    std::optional<picazoo::platform::WallpaperSnapshot> wallpaperBefore_;
 };

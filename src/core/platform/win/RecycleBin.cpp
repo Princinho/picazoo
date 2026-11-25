@@ -10,6 +10,8 @@
 #include <shobjidl.h>
 
 #include <QDateTime>
+#include <QHash>
+#include <QMutex>
 #include <QFile>
 
 #include <algorithm>
@@ -170,6 +172,23 @@ bool volumeHasRecycleBin(const QString& path)
     SHQUERYRBINFO info{};
     info.cbSize = sizeof(info);
     return SUCCEEDED(SHQueryRecycleBinW(root.c_str(), &info));
+}
+
+bool volumeHasRecycleBinCached(const QString& path)
+{
+    static QMutex mutex;
+    static QHash<QString, bool> cache;
+    const QString root = QString::fromStdWString(volumeRoot(path)).toUpper();
+    {
+        QMutexLocker lock(&mutex);
+        const auto it = cache.constFind(root);
+        if (it != cache.constEnd())
+            return *it;
+    }
+    const bool has = volumeHasRecycleBin(path);
+    QMutexLocker lock(&mutex);
+    cache.insert(root, has);
+    return has;
 }
 
 RecycleResult moveToRecycleBin(const QString& path, QString* message)

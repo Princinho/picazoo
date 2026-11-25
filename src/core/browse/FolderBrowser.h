@@ -58,6 +58,10 @@ public:
     void first();
     void last();
     void goTo(int index);
+    // 007 : retire tout de suite `path` du parcours (photo mise à la corbeille par la visionneuse),
+    // sans attendre la surveillance du dossier ni annoncer « supprimée ou déplacée ». Si c'était
+    // la photo affichée, la suivante (sinon la précédente) prend sa place. Faux s'il ne reste rien.
+    bool removePath(const QString& path);
 
     // Tests : traite les événements jusqu'à la fin du listage (et de l'ordre si demandé).
     bool waitForListing(int timeoutMs, bool includeOrder = false);
@@ -95,6 +99,7 @@ private:
     QString currentPath_;
     bool listed_ = false;
     bool missingCurrent_ = false;
+    bool quietRemoval_ = false;
     OrderSource orderSource_ = OrderSource::Natural;
 };
 

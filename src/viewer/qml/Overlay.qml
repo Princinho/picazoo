@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Window
+import Picazoo.Zoom
 
 // Visionneuse autonome (005) : voile semi-transparent posé sur le bureau, comme la
 // Visionneuse de photos Picasa (contracts/ui-contract.md).
@@ -31,6 +32,13 @@ Window {
     function toast(text) {
         if (chromeLoader.item)
             chromeLoader.item.toast(text)
+    }
+    // 007 : menu de l'image et mise à la corbeille (contracts/ui-contract.md).
+    function openContextMenu(x, y) {
+        if (chromeLoader.item) {
+            wake()
+            chromeLoader.item.openImageMenu(x, y)
+        }
     }
     function loadChrome() {
         if (chromeLoader.status === Loader.Null)
@@ -94,8 +102,23 @@ Window {
             case Qt.Key_F11: session.opaque = !session.opaque; break
             case Qt.Key_I: win.showInfo = !win.showInfo; break
             case Qt.Key_Plus:
-            case Qt.Key_Equal: if (ctrl) stage.zoomBy(1.25); else return; break
-            case Qt.Key_Minus: if (ctrl) stage.zoomBy(1 / 1.25); else return; break
+            case Qt.Key_Equal: if (ctrl) stage.zoomStep(+1, ZoomController.Key, event.isAutoRepeat); else return; break
+            case Qt.Key_Minus: if (ctrl) stage.zoomStep(-1, ZoomController.Key, event.isAutoRepeat); else return; break
+            // 007 : flèches haut / bas = zoom d'un cran au centre (sans effet hors photo).
+            case Qt.Key_Up: stage.zoomStep(+1, ZoomController.Key, event.isAutoRepeat); break
+            case Qt.Key_Down: stage.zoomStep(-1, ZoomController.Key, event.isAutoRepeat); break
+            case Qt.Key_Menu: win.openContextMenu(-1, -1); break
+            case Qt.Key_F10: if (shift) win.openContextMenu(-1, -1); else return; break
+            case Qt.Key_Delete: if (chromeLoader.item) chromeLoader.item.askTrash(); break
+            case Qt.Key_C:
+                if (!ctrl) return
+                if (shift) session.copyPath(); else session.copyImage()
+                break
+            case Qt.Key_Z: if (ctrl && chromeLoader.item && chromeLoader.item.undoToast()) {} else return; break
+            case Qt.Key_Return:
+            case Qt.Key_Enter:
+                if (event.modifiers & Qt.AltModifier) session.showProperties(); else return
+                break
             case Qt.Key_0: if (ctrl) stage.fit(); else return; break
             case Qt.Key_E: if (ctrl && shift) session.revealInExplorer(); else return; break
             default: return
@@ -120,6 +143,7 @@ Window {
             id: stage
             anchors.fill: parent
             margin: win.opaque ? 0 : 48
+            onContextMenuRequested: (x, y) => win.openContextMenu(x, y)
             Behavior on margin { NumberAnimation { duration: session.animations ? 200 : 0; easing.type: Easing.OutCubic } }
             onFirstShown: {
                 session.firstImageShown()

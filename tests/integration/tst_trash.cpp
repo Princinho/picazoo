@@ -5,6 +5,7 @@
 #include "duplicates/DuplicateEngine.h"
 #include "duplicates/DuplicateStore.h"
 #include "fileops/TrashService.h"
+#include "index/Database.h"
 #include "library/Library.h"
 #include "platform/win/FileIdentity.h"
 #include "platform/win/RecycleBin.h"
@@ -14,6 +15,8 @@
 #include "support/RecycleBinCleanup.h"
 #include "support/TempTree.h"
 
+#include <QDateTime>
+#include <QDir>
 #include <QFile>
 #include <QFileInfo>
 #include <QtTest>
@@ -62,6 +65,15 @@ struct Rig {
         purgeRecycledUnder(photos.path()); // ne laisse rien dans la corbeille de l'utilisateur
     }
     bool idle() { return fx.idle(60000) && engine->waitForIdle(60000); }
+    // 007 : élément de la bibliothèque par nom de fichier (premier trouvé).
+    ItemId itemNamed(const QString& fileName) const
+    {
+        for (const Folder& f : fx.lib->folders(FolderSort::NameAsc))
+            for (const ItemSummary& s : fx.lib->itemSummaries(f.id, ItemSort::NameAsc))
+                if (s.fileName == fileName)
+                    return s.id;
+        return 0;
+    }
     GroupId onlyGroup()
     {
         const auto g = engine->store().groups();
@@ -314,6 +326,98 @@ private slots:
         // Sans opération en cours : sans effet.
         rig.trash->requestStop();
         QVERIFY(!rig.trash->busy());
+    }
+
+    // --- 007 : mise à la corbeille depuis la bibliothèque (menu contextuel), sans copie gardée.
+
+    void trashLibraryItemsThenUndo()
+    {
+        Rig rig;
+        QVERIFY(rig.idle());
+        const FsSnapshot before = FsSnapshot::take(rig.photos.path());
+        const ItemId other = rig.itemNamed(QStringLiteral("autre.jpg"));
+        const ItemId photo = rig.itemNamed(QStringLiteral("photo.jpg"));
+        QVERIFY(other && photo);
+
+        const TrashPlan plan = rig.trash->planItems({other, photo});
+        QCOMPARE(plan.toTrash.size(), 2);
+        for (const auto& e : plan.toTrash) {
+            QCOMPARE(e.keeper, ItemId(0));
+            QCOMPARE(e.group, GroupId(0));
+        }
+        PICAZOO_VERIFY_UNTOUCHED(before, rig.photos.path()); // le plan ne touche à rien
+
+        const OperationId op = rig.trash->execute(plan, OperationSource::Library);
+        QVERIFY(op);
+        QVERIFY(rig.trash->waitForIdle(60000));
+        QVERIFY(rig.idle());
+        const auto done = rig.trash->operation(op);
+        QCOMPARE(done->state, OperationState::Done);
+        QCOMPARE(done->source, OperationSource::Library);
+        for (const auto& e : done->entries) {
+            QCOMPARE(e.result, QStringLiteral("trashed"));
+            QVERIFY(e.keeperPath.isEmpty());
+            QVERIFY(!QFileInfo::exists(e.path));
+        }
+        QCOMPARE(rig.fx.lib->itemCount(), 2);
+        QCOMPARE(rig.trash->journal().first().source, OperationSource::Library);
+
+        const OperationId back = rig.trash->undo(op);
+        QVERIFY(back);
+        QVERIFY(rig.trash->waitForIdle(60000));
+        QCOMPARE(rig.trash->operation(back)->source, OperationSource::Library);
+        PICAZOO_VERIFY_UNTOUCHED(before, rig.photos.path());
+        QVERIFY(rig.idle());
+        QCOMPARE(rig.fx.lib->itemCount(), 4);
+    }
+
+    void changedLibraryItemIsLeftInPlace()
+    {
+        Rig rig;
+        QVERIFY(rig.idle());
+        const ItemId other = rig.itemNamed(QStringLiteral("autre.jpg"));
+        const TrashPlan plan = rig.trash->planItems({other});
+        QCOMPARE(plan.toTrash.size(), 1);
+        const QString path = plan.toTrash.first().path;
+        {
+            QFile f(path);
+            QVERIFY(f.open(QIODevice::Append));
+            f.write("modifié après la préparation");
+        }
+        const OperationId op = rig.trash->execute(plan, OperationSource::Library);
+        QVERIFY(rig.trash->waitForIdle(60000));
+        QCOMPARE(rig.trash->operation(op)->entries.first().result, QStringLiteral("skipped_changed"));
+        QVERIFY(QFileInfo::exists(path));
+    }
+
+    // Une opération récente peut appartenir à une visionneuse autonome en train d'agir : la
+    // reprise après arrêt brutal ne la touche pas ; une ancienne est constatée.
+    void recoveryIgnoresRecentOperations()
+    {
+        Rig rig;
+        QVERIFY(rig.idle());
+        const QString path = rig.photos.file("A/autre.jpg");
+        const qint64 now = QDateTime::currentMSecsSinceEpoch();
+        {
+            auto db = Database::open(QDir(rig.fx.lib->dataDir()).filePath(QStringLiteral("library.db")));
+            std::lock_guard lock(db->mutex());
+            for (qint64 created : {now - 10'000, now - 120'000}) {
+                auto op = db->prepare("INSERT INTO file_operation (kind, created_at, state, file_count, bytes, source)"
+                                      " VALUES ('trash', ?, 'running', 1, 1, 'viewer')");
+                op.bind(1, created);
+                op.run();
+                auto e = db->prepare("INSERT INTO file_operation_entry (operation_id, original_path, size_bytes, mtime)"
+                                     " VALUES (?, ?, 1, 0)");
+                e.bind(1, db->lastInsertId()).bind(2, path);
+                e.run();
+            }
+        }
+        TrashService fresh(*rig.fx.lib, *rig.engine); // reprise dans le constructeur
+        const auto journal = fresh.journal();
+        QCOMPARE(journal.size(), 2);
+        QCOMPARE(journal[1].state, OperationState::Running); // la récente (insérée la première)
+        QCOMPARE(journal[0].state, OperationState::Partial); // l'ancienne
+        QVERIFY(QFileInfo::exists(path));
     }
 };
 

@@ -29,6 +29,38 @@ private slots:
         }
     }
 
+    // 007 (T030) : migration 3 -> 4, origine des opérations du journal.
+    void migratesOperationSource()
+    {
+        test::TempTree t;
+        const QString path = t.file("library.db");
+        {
+            auto probe = Database::open(t.file("probe.db"));
+            migrateLibrary(*probe); // charge les ressources SQL de la bibliothèque statique
+            auto db = Database::open(path);
+            std::lock_guard lock(db->mutex());
+            for (const char* name : {":/sql/001_initial.sql", ":/sql/002_doublons.sql", ":/sql/003_doublons_lot.sql"}) {
+                QFile f(QString::fromLatin1(name));
+                QVERIFY(f.open(QIODevice::ReadOnly));
+                Transaction tx(*db);
+                db->exec(f.readAll().constData());
+                tx.commit();
+            }
+            db->exec("INSERT INTO file_operation (kind, created_at, state, file_count, bytes)"
+                     " VALUES ('trash', 0, 'done', 1, 10)");
+        }
+        auto db = Database::open(path);
+        QCOMPARE(migrateLibrary(*db), 4);
+        std::lock_guard lock(db->mutex());
+        auto q = db->prepare("SELECT source FROM file_operation");
+        QVERIFY(q.step());
+        QCOMPARE(q.text(0), QStringLiteral("duplicates"));
+        db->exec("INSERT INTO file_operation (kind, created_at, state, source) VALUES ('trash', 0, 'done', 'library')");
+        db->exec("INSERT INTO file_operation (kind, created_at, state, source) VALUES ('trash', 0, 'done', 'viewer')");
+        QVERIFY_THROWS_EXCEPTION(DbError, db->exec("INSERT INTO file_operation (kind, created_at, state, source)"
+                                                   " VALUES ('trash', 0, 'done', 'ailleurs')"));
+    }
+
     void enforcesUniqueAndCascade()
     {
         test::TempTree t;

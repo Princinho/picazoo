@@ -227,6 +227,37 @@ TrashPlan TrashService::planAllIdentical() const
     return plan(engine_.store().groups(LevelFilter::Identical));
 }
 
+TrashPlan TrashService::planItems(const QList<ItemId>& items) const
+{
+    TrashPlan p;
+    QHash<QString, bool> volumes;
+    for (ItemId id : items) {
+        const auto item = lib_.item(id);
+        if (!item)
+            continue;
+        const QString path = item->path();
+        if (!exists(path)) {
+            p.blocked << BlockedEntry{id, 0, path, BlockReason::Unavailable};
+            continue;
+        }
+        const QString vol = path.left(3).toUpper();
+        auto v = volumes.find(vol);
+        if (v == volumes.end())
+            v = volumes.insert(vol, platform::volumeHasRecycleBin(path));
+        if (!*v) {
+            p.blocked << BlockedEntry{id, 0, path, BlockReason::NoRecycleBin};
+            continue;
+        }
+        TrashPlanEntry e;
+        e.item = id;
+        e.path = path;
+        e.bytes = item->sizeBytes;
+        p.toTrash << e;
+        p.bytes += e.bytes;
+    }
+    return p;
+}
+
 TrashPlan TrashPlan::filtered(const std::function<bool(const TrashPlanEntry&)>& keep) const
 {
     TrashPlan p;
@@ -248,14 +279,16 @@ void TrashService::requestStop()
 
 // ---------------------------------------------------------------- Exécution
 
-OperationId TrashService::execute(const TrashPlan& confirmed)
+OperationId TrashService::execute(const TrashPlan& confirmed, OperationSource source)
 {
     if (busy_.load() || confirmed.toTrash.isEmpty())
         return 0;
     // FR-017, revérifié ici indépendamment de l'interface : chaque groupe garde une copie.
+    // (Les entrées sans groupe viennent de la bibliothèque ou de la visionneuse, 007.)
     QHash<GroupId, int> trashedPerGroup;
     for (const auto& e : confirmed.toTrash)
-        ++trashedPerGroup[e.group];
+        if (e.group != 0)
+            ++trashedPerGroup[e.group];
     for (auto it = trashedPerGroup.constBegin(); it != trashedPerGroup.constEnd(); ++it) {
         const auto g = engine_.store().group(it.key());
         if (!g || it.value() >= g->copies.size())
@@ -269,9 +302,9 @@ OperationId TrashService::execute(const TrashPlan& confirmed)
         std::lock_guard lock(dbMutex_);
         std::lock_guard dbLock(db_->mutex());
         Transaction tx(*db_);
-        auto op = db_->prepare("INSERT INTO file_operation (kind, created_at, state, file_count, bytes)"
-                               " VALUES ('trash', ?, 'planned', ?, ?)");
-        op.bind(1, nowMs()).bind(2, int(plan.toTrash.size())).bind(3, plan.bytes);
+        auto op = db_->prepare("INSERT INTO file_operation (kind, created_at, state, file_count, bytes, source)"
+                               " VALUES ('trash', ?, 'planned', ?, ?, ?)");
+        op.bind(1, nowMs()).bind(2, int(plan.toTrash.size())).bind(3, plan.bytes).bind(4, toDb(source));
         op.run();
         id = db_->lastInsertId();
         auto entry = db_->prepare("INSERT INTO file_operation_entry (operation_id, item_id, original_path, size_bytes,"
@@ -283,7 +316,10 @@ OperationId TrashService::execute(const TrashPlan& confirmed)
                 entry.bindNull(6);
             else
                 entry.bind(6, f.contentHash);
-            entry.bind(7, e.keeperPath);
+            if (e.keeperPath.isEmpty())
+                entry.bindNull(7);
+            else
+                entry.bind(7, e.keeperPath);
             entry.run();
         }
         tx.commit();
@@ -353,10 +389,14 @@ void TrashService::runTrash(OperationId id, TrashPlan plan)
         const qint64 entryId = entryIds.value(e.item);
         QString result, message;
         const IndexedFile victim = indexedFile(*db_, e.item);
-        const IndexedFile keeper = indexedFile(*db_, e.keeper);
-        bool verified = victim.found && keeper.found && platform::samePath(victim.path, e.path) &&
-                        unchangedOnDisk(victim) && unchangedOnDisk(keeper);
-        if (verified && e.identical) {
+        bool verified = victim.found && platform::samePath(victim.path, e.path) && unchangedOnDisk(victim);
+        if (e.keeper != 0) {
+            // Doublons : la copie gardée doit elle aussi être intacte.
+            const IndexedFile keeper = indexedFile(*db_, e.keeper);
+            verified = verified && keeper.found && unchangedOnDisk(keeper);
+        }
+        if (verified && e.identical && e.keeper != 0) {
+            const IndexedFile keeper = indexedFile(*db_, e.keeper);
             // « Identique » : on refait l'empreinte des deux fichiers juste avant d'agir.
             const auto hv = platform::hashFileContent(victim.path);
             const auto hk = platform::hashFileContent(keeper.path);
@@ -368,19 +408,12 @@ void TrashService::runTrash(OperationId id, TrashPlan plan)
             changed = true;
         } else {
             QString why;
-            switch (platform::moveToRecycleBin(e.path, &why)) {
-            case platform::RecycleResult::Recycled:
-                result = QStringLiteral("trashed");
+            result = FileTrash::recycle(e.path, &why);
+            if (result == u"trashed") {
                 trashed << e.item;
                 ++ok;
-                break;
-            case platform::RecycleResult::NoRecycleBin: result = QStringLiteral("skipped_no_recycle_bin"); break;
-            case platform::RecycleResult::Locked: result = QStringLiteral("skipped_locked"); break;
-            case platform::RecycleResult::Missing:
-                result = QStringLiteral("skipped_changed");
+            } else if (result == u"skipped_changed") {
                 changed = true;
-                break;
-            case platform::RecycleResult::Failed: result = QStringLiteral("failed"); break;
             }
             message = why;
         }
@@ -434,9 +467,9 @@ OperationId TrashService::undo(OperationId original)
     {
         std::lock_guard lock(dbMutex_);
         std::lock_guard dbLock(db_->mutex());
-        auto q = db_->prepare("INSERT INTO file_operation (kind, undoes_id, created_at, state, file_count, bytes)"
-                              " VALUES ('restore', ?, ?, 'planned', ?, ?)");
-        q.bind(1, original).bind(2, nowMs()).bind(3, count).bind(4, bytes);
+        auto q = db_->prepare("INSERT INTO file_operation (kind, undoes_id, created_at, state, file_count, bytes, source)"
+                              " VALUES ('restore', ?, ?, 'planned', ?, ?, ?)");
+        q.bind(1, original).bind(2, nowMs()).bind(3, count).bind(4, bytes).bind(5, toDb(op->source));
         q.run();
         id = db_->lastInsertId();
     }
@@ -492,8 +525,8 @@ QList<Operation> TrashService::journal() const
     std::lock_guard lock(dbMutex_);
     std::lock_guard dbLock(db_->mutex());
     QList<Operation> out;
-    auto q = db_->prepare("SELECT id, kind, undoes_id, created_at, finished_at, state, file_count, bytes, stopped"
-                          " FROM file_operation ORDER BY id DESC");
+    auto q = db_->prepare("SELECT id, kind, undoes_id, created_at, finished_at, state, file_count, bytes, stopped,"
+                          " source FROM file_operation ORDER BY id DESC");
     while (q.step()) {
         Operation o;
         o.id = q.int64(0);
@@ -505,6 +538,7 @@ QList<Operation> TrashService::journal() const
         o.fileCount = q.int32(6);
         o.bytes = q.int64(7);
         o.stopped = q.int32(8) != 0;
+        o.source = operationSourceFromDb(q.text(9));
         out << o;
     }
     return out;
@@ -514,8 +548,8 @@ std::optional<Operation> TrashService::operation(OperationId id) const
 {
     std::lock_guard lock(dbMutex_);
     std::lock_guard dbLock(db_->mutex());
-    auto q = db_->prepare("SELECT id, kind, undoes_id, created_at, finished_at, state, file_count, bytes, stopped"
-                          " FROM file_operation WHERE id = ?");
+    auto q = db_->prepare("SELECT id, kind, undoes_id, created_at, finished_at, state, file_count, bytes, stopped,"
+                          " source FROM file_operation WHERE id = ?");
     q.bind(1, id);
     if (!q.step())
         return std::nullopt;
@@ -529,6 +563,7 @@ std::optional<Operation> TrashService::operation(OperationId id) const
     o.fileCount = q.int32(6);
     o.bytes = q.int64(7);
     o.stopped = q.int32(8) != 0;
+    o.source = operationSourceFromDb(q.text(9));
     // Pour une restauration, le détail est celui de l'opération annulée.
     auto e = db_->prepare("SELECT id, item_id, original_path, size_bytes, keeper_path, result, message"
                           " FROM file_operation_entry WHERE operation_id = ? ORDER BY id");
@@ -553,7 +588,11 @@ void TrashService::recoverInterrupted()
     QList<OperationId> open;
     {
         std::lock_guard dbLock(db_->mutex());
-        auto q = db_->prepare("SELECT id FROM file_operation WHERE state IN ('planned', 'running') AND kind = 'trash'");
+        // 007 : une opération de moins d'une minute peut être en cours dans une visionneuse autonome
+        // (même base, autre processus) : on ne la « répare » pas.
+        auto q = db_->prepare("SELECT id FROM file_operation WHERE state IN ('planned', 'running') AND kind = 'trash'"
+                              " AND created_at < ?");
+        q.bind(1, nowMs() - 60'000);
         while (q.step())
             open << q.int64(0);
     }

@@ -13,6 +13,13 @@ FocusScope {
     // Écran « Doublons » (002) à la place de la grille.
     property bool showDuplicates: false
 
+    // Développement (PICAZOO_DEV_SCREEN=grid-menu, 007) : menu des deux premières vignettes.
+    function devItemMenu() {
+        const a = gridModel.itemAtFlat(0), b = gridModel.itemAtFlat(1)
+        selection.current = a
+        selection.setSelection(b ? [a, b] : [a], false)
+        grid.openItemMenu(true)
+    }
     function revealItem(id) {
         if (!root.showDuplicates)
             grid.revealItem(id)

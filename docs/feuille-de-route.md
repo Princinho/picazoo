@@ -19,8 +19,9 @@ Spec Kit (`specify` → `clarify` → `plan` → `tasks` → `implement`).
 | 006 | **Gestion des doublons en lot** | Sélectionner des centaines de groupes et agir en une fois, garder ou écarter selon le dossier (paires de dossiers, règles durables), vue compacte, récapitulatif par dossier, arrêt et annulation des lots. | 002 |
 | 004 | **Réorganisation de la bibliothèque** | Copier ou déplacer toute la bibliothèque vers un dossier choisi, avec un sous-dossier par groupe d'images liées ; aperçu avant d'agir, journal et annulation. | 001, 003 (002 recommandé avant) |
 | 005 | **Visionneuse autonome** | Comme la Visionneuse de photos Picasa : un double-clic sur une photo dans l'Explorateur ouvre seulement une visionneuse légère, quasi instantanée, sans bibliothèque ni analyse ; parcours des images du dossier avec transitions animées, zoom à la molette centré sur le curseur ; association avec Windows proposée, jamais imposée ; passage vers l'application complète. | 001 (peut passer avant 002–004) |
+| 007 | **Ergonomie des visionneuses et clic droit** | Bouton pour quitter le plein écran à la souris ; zoom plus doux avec élan et butée à 100 % ; ↑ / ↓ pour zoomer ; menus contextuels partout (copier, chemin, Propriétés, fond d'écran, corbeille annulable). | 001, 005 |
 
-État au 2026-11-23 : 001 livrée ; 002 implémentée (branche `claude/002-detection-doublons-b93eeb`, en revue).
+État au 2026-11-24 : 001, 002, 005, 006 livrées ; 007 implémentée (branche `claude/007-clic-droit-zoom-plein-ecran`), à valider à la main.
 
 ## Pistes pour après (non engagées)
 

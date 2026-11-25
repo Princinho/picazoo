@@ -51,14 +51,14 @@ Rectangle {
         IconButton { glyph: Theme.iconPrev; Accessible.name: "Photo précédente (←)"; enabled: session.count > 1; onClicked: bar.previous() }
         IconButton { glyph: Theme.iconNext; Accessible.name: "Photo suivante (→)"; enabled: session.count > 1; onClicked: bar.next() }
         Sep {}
-        IconButton { glyph: Theme.iconZoomOut; Accessible.name: "Zoom arrière (Ctrl −)"; enabled: bar.imageActions; onClicked: bar.zoomOut() }
+        IconButton { glyph: Theme.iconZoomOut; Accessible.name: "Zoom arrière (↓, Ctrl −)"; enabled: bar.imageActions; onClicked: bar.zoomOut() }
         Label {
             Layout.preferredWidth: 56
             horizontalAlignment: Text.AlignHCenter
             text: Math.round(bar.zoomPercent) + " %"
             color: Theme.textSoft
         }
-        IconButton { glyph: Theme.iconZoomIn; Accessible.name: "Zoom avant (Ctrl +)"; enabled: bar.imageActions; onClicked: bar.zoomIn() }
+        IconButton { glyph: Theme.iconZoomIn; Accessible.name: "Zoom avant (↑, Ctrl +)"; enabled: bar.imageActions; onClicked: bar.zoomIn() }
         TextPill { text: "Ajuster"; active: bar.fitActive; enabled: bar.imageActions; onClicked: bar.fit() }
         TextPill { text: "100 %"; enabled: bar.imageActions; onClicked: bar.actualSize() }
         Sep {}

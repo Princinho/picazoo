@@ -154,8 +154,26 @@ void FolderBrowser::rebuild()
     const bool wasMissing = missingCurrent_;
     missingCurrent_ = true;
     emit listChanged();
-    if (!wasMissing)
+    if (!wasMissing && !quietRemoval_)
         emit currentRemoved();
+}
+
+bool FolderBrowser::removePath(const QString& path)
+{
+    const auto same = [&path](const BrowseEntry& e) { return e.path.compare(path, Qt::CaseInsensitive) == 0; };
+    listing_.removeIf(same);
+    if (same(openedEntry_))
+        openedEntry_ = BrowseEntry{};
+    const bool wasCurrent = currentPath_.compare(path, Qt::CaseInsensitive) == 0;
+    const int old = current_;
+    quietRemoval_ = true;
+    rebuild();
+    quietRemoval_ = false;
+    if (entries_.isEmpty())
+        return false;
+    if (wasCurrent)
+        setCurrentIndex(std::clamp(old, 0, int(entries_.size()) - 1));
+    return true;
 }
 
 void FolderBrowser::rescan()

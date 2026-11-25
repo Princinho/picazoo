@@ -1,4 +1,5 @@
 import QtQuick
+import Picazoo.Zoom
 
 // Scène de la visionneuse autonome : quatre emplacements d'image recyclés pour des
 // transitions nettes (research V9) et le zoom ancré sur le curseur (research V10).
@@ -15,9 +16,9 @@ Item {
     readonly property var current: currentSlot >= 0 ? slots.itemAt(currentSlot) : null
     readonly property bool currentReady: current !== null && current.ready
     readonly property bool currentFailed: current !== null && current.failed
-    readonly property bool zoomed: current !== null && !current.fitMode
-    readonly property bool canPan: current !== null && (current.fw * current.s > width + 0.5 || current.fh * current.s > height + 0.5)
-    readonly property real zoomPercent: current ? current.s * 100 : 100
+    readonly property bool zoomed: current !== null && !current.zc.fitMode
+    readonly property bool canPan: current !== null && current.zc.canPan
+    readonly property real zoomPercent: current ? current.zc.percent : 100
     signal firstShown()
     property bool shownOnce: false
 
@@ -136,13 +137,15 @@ Item {
         }
     }
 
-    // Commandes de zoom (clavier, boutons)
-    function zoomBy(factor) {
+    // Commandes de zoom (clavier, boutons) : un pas au centre ; `autoRepeat` fait d'un appui
+    // maintenu un seul geste (butée à 100 %, 007).
+    function zoomStep(direction, source, autoRepeat) {
         if (current && current.ready)
-            current.zoomTo((current.zoomAnim.running ? current.zoomAnim.to : current.s) * factor, width / 2, height / 2, true)
+            current.zc.stepCentered(direction, source, autoRepeat === true)
     }
-    function fit() { if (current) current.zoomTo(current.fitS, width / 2, height / 2, true) }
-    function actualSize() { if (current) current.zoomTo(1, width / 2, height / 2, true) }
+    function fit() { if (current) current.zc.fit() }
+    function actualSize() { if (current) current.zc.actualSize() }
+    function stopZoom() { if (current) current.zc.stop() }
 
     onCurrentReadyChanged: noteShown()
 
@@ -187,102 +190,48 @@ Item {
                                                           : Math.max(1, isGif ? gif.implicitWidth : preview.implicitWidth)
             readonly property real fh: fullSize.height > 0 ? fullSize.height
                                                            : Math.max(1, isGif ? gif.implicitHeight : preview.implicitHeight)
-            readonly property real fitS: session.fitScale(fw, fh, Math.max(1, width - 2 * stage.margin),
-                                                          Math.max(1, height - 2 * stage.margin))
-            property real s: 1
-            property real ox: 0
-            property real oy: 0
-            property bool fitMode: true
-            // Zoom en cours, ancré sur le point écran (ax, ay) : de l'échelle s0 et de l'offset
-            // (sx, sy) vers l'échelle s1 et l'offset (ex, ey) (browse/ZoomMath).
-            property bool anchoring: false
-            property real ax: 0
-            property real ay: 0
-            property real s0: 1
-            property real s1: 1
-            property real sx: 0
-            property real sy: 0
-            property real ex: 0
-            property real ey: 0
-            property alias zoomAnim: zoomAnim
-
-            function clampNow() {
-                const p = session.clampOffset(ox, oy, s, fw, fh, width, height)
-                ox = p.x
-                oy = p.y
+            // Zoom (007, core/browse/ZoomMotion) : échelle, position, poursuite et élan.
+            readonly property alias zc: zc
+            ZoomController {
+                id: zc
+                imageWidth: slot.fw
+                imageHeight: slot.fh
+                viewWidth: slot.width
+                viewHeight: slot.height
+                margin: stage.margin
+                immediate: !stage.animations
             }
-            function resetView() {
-                zoomAnim.stop()
-                anchoring = false
-                fitMode = true
-                s = fitS
-                clampNow()
-            }
-            function zoomTo(target, x, y, animate) {
-                const ns = session.clampScale(target, fw, fh, Math.max(1, width - 2 * stage.margin),
-                                              Math.max(1, height - 2 * stage.margin))
-                zoomAnim.stop()
-                // En avant, le point de l'image sous le curseur y reste ; en arrière, l'image se recentre.
-                const a = session.anchorOnImage(x, y, ox, oy, s, fw, fh)
-                const e = session.zoomEndOffset(ox, oy, s, ns, a.x, a.y, fw, fh, width, height)
-                ax = a.x
-                ay = a.y
-                s0 = s
-                s1 = ns
-                sx = ox
-                sy = oy
-                ex = e.x
-                ey = e.y
-                fitMode = ns <= fitS * 1.0001
-                anchoring = true
-                if (animate && stage.animations) {
-                    zoomAnim.to = ns
-                    zoomAnim.start()
-                } else {
-                    s = ns
-                    anchoring = false
-                }
+            FrameAnimation {
+                running: zc.moving
+                onTriggered: zc.advance(frameTime)
             }
 
-            onSChanged: if (anchoring) {
-                const p = session.zoomStepOffset(sx, sy, s0, s1, ex, ey, s, ax, ay)
-                ox = p.x
-                oy = p.y
-            }
-            onFitSChanged: if (fitMode) { s = fitS; clampNow() }
-            onWidthChanged: clampNow()
-            onHeightChanged: clampNow()
-            onPathChanged: { fullSize = Qt.size(0, 0); fitMode = true }
+            function resetView() { zc.reset() }
+
+            onPathChanged: { fullSize = Qt.size(0, 0); zc.reset() }
             onReadyChanged: {
                 if (ready) {
                     const f = session.fullSize(path)
                     if (f.width > 0)
                         fullSize = f
-                    if (fitMode) { s = fitS; clampNow() }
+                    if (zc.fitMode)
+                        zc.reset()
                 }
                 if ((ready || failed) && stage.pendingSlot === index)
                     stage.startTransition()
             }
             onFailedChanged: if (failed && stage.pendingSlot === index) stage.startTransition()
 
-            NumberAnimation {
-                id: zoomAnim
-                target: slot
-                property: "s"
-                duration: 120
-                easing.type: Easing.OutQuad
-                onRunningChanged: if (!running) slot.anchoring = false
-            }
-
+            // Décodage de la pleine résolution dès que la cible la demande (FR-046).
             readonly property bool needFull: slot === stage.current && kind === "image" && ready
-                                             && s * fw > preview.implicitWidth * 1.01
+                                             && Math.max(zc.scale, zc.target) * fw > preview.implicitWidth * 1.01
 
             Image {
                 id: preview
-                x: slot.ox + slot.shift
-                y: slot.oy
-                width: slot.fw * slot.s
-                height: slot.fh * slot.s
+                x: zc.offsetX + slot.shift
+                y: zc.offsetY
+                width: slot.fw * zc.scale
+                height: slot.fh * zc.scale
                 visible: !slot.isGif && !(full.status === Image.Ready && full.visible)
                 source: slot.kind === "image" ? session.source("screen", slot.path) : ""
                 asynchronous: true
@@ -304,10 +253,10 @@ Item {
             }
             AnimatedImage {
                 id: gif
-                x: slot.ox + slot.shift
-                y: slot.oy
-                width: slot.fw * slot.s
-                height: slot.fh * slot.s
+                x: zc.offsetX + slot.shift
+                y: zc.offsetY
+                width: slot.fw * zc.scale
+                height: slot.fh * zc.scale
                 visible: slot.isGif
                 source: slot.isGif ? "file:///" + slot.path.replace(/\\/g, "/") : ""
                 playing: slot.visible
@@ -324,18 +273,16 @@ Item {
             const c = stage.current
             if (!c || !c.ready)
                 return
-            const base = c.zoomAnim.running ? c.zoomAnim.to : c.s
-            c.zoomTo(base * session.wheelFactor(event.angleDelta.y), point.position.x, point.position.y, true)
+            c.zc.wheel(event.angleDelta.y, point.position.x, point.position.y)
         }
     }
 
     PinchHandler {
         id: pinch
         target: null
-        property real startScale: 1
-        onActiveChanged: if (active && stage.current) startScale = stage.current.s
+        onActiveChanged: if (stage.current) { if (active) stage.current.zc.pinchBegin(); else stage.current.zc.pinchEnd() }
         onActiveScaleChanged: if (active && stage.current && stage.current.ready)
-            stage.current.zoomTo(startScale * activeScale, centroid.position.x, centroid.position.y, false)
+            stage.current.zc.pinchUpdate(activeScale, centroid.position.x, centroid.position.y)
     }
 
     DragHandler {
@@ -346,35 +293,36 @@ Item {
         cursorShape: active ? Qt.ClosedHandCursor : Qt.OpenHandCursor
         property real startX: 0
         property real startY: 0
+        // Sans élan : l'image s'arrête net quand on la lâche (FR-047).
         onActiveChanged: if (active && stage.current) {
-            stage.current.zoomAnim.stop()
-            stage.current.anchoring = false
-            startX = stage.current.ox
-            startY = stage.current.oy
+            stage.current.zc.stop()
+            startX = stage.current.zc.offsetX
+            startY = stage.current.zc.offsetY
         }
-        onTranslationChanged: if (active && stage.current) {
-            const c = stage.current
-            const p = session.clampPan(startX + translation.x, startY + translation.y, c.ox, c.oy,
-                                       c.s, c.fw, c.fh, c.width, c.height)
-            c.ox = p.x
-            c.oy = p.y
-        }
+        onTranslationChanged: if (active && stage.current)
+            stage.current.zc.panTo(startX + translation.x, startY + translation.y)
     }
 
     HoverHandler {
         cursorShape: stage.canPan ? Qt.OpenHandCursor : Qt.ArrowCursor
     }
 
+    // 007 : clic droit = menu de l'image ; ne zoome ni ne déplace (FR-069).
+    signal contextMenuRequested(real x, real y)
+    TapHandler {
+        acceptedButtons: Qt.RightButton
+        onTapped: eventPoint => stage.contextMenuRequested(eventPoint.position.x, eventPoint.position.y)
+    }
+
     TapHandler {
         acceptedButtons: Qt.LeftButton
+        // Un clic arrête l'élan du zoom (FR-042).
+        onPressedChanged: if (pressed && stage.current && stage.current.zc.moving) stage.current.zc.stop()
         onDoubleTapped: (eventPoint, button) => {
             const c = stage.current
             if (!c || !c.ready)
                 return
-            if (c.fitMode)
-                c.zoomTo(1, eventPoint.position.x, eventPoint.position.y, true)
-            else
-                c.zoomTo(c.fitS, eventPoint.position.x, eventPoint.position.y, true)
+            c.zc.toggleAt(eventPoint.position.x, eventPoint.position.y)
         }
     }
 }

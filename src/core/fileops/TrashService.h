@@ -9,6 +9,7 @@
 //  - le journal est écrit avant le premier fichier traité.
 
 #include "duplicates/DuplicateTypes.h"
+#include "fileops/FileTrash.h"
 
 #include <QList>
 #include <QObject>
@@ -81,6 +82,7 @@ struct Operation {
     int fileCount = 0;
     qint64 bytes = 0;
     bool stopped = false; // 006 : arrêtée par l'utilisateur
+    OperationSource source = OperationSource::Duplicates; // 007 : doublons, bibliothèque ou visionneuse
     QList<OperationEntry> entries;
 };
 
@@ -98,9 +100,12 @@ public:
     // Récapitulatif ; ne touche à rien (FR-016).
     TrashPlan plan(const QList<GroupId>& groups) const;
     TrashPlan planAllIdentical() const; // FR-022
+    // 007 : éléments quelconques de la bibliothèque (menu « Mettre à la corbeille… »), sans copie
+    // gardée ; les fichiers absents ou sur un disque sans corbeille sont bloqués.
+    TrashPlan planItems(const QList<ItemId>& items) const;
 
     // Exécute un plan confirmé, en arrière-plan. 0 si refusé (opération déjà en cours, plan vide).
-    OperationId execute(const TrashPlan& confirmed);
+    OperationId execute(const TrashPlan& confirmed, OperationSource source = OperationSource::Duplicates);
     // Restaure depuis la corbeille ce qui y est encore (FR-021). 0 si impossible.
     OperationId undo(OperationId id);
     // 006 (research R8) : l'opération de mise à la corbeille en cours s'arrête entre deux
