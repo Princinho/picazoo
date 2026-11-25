@@ -2,12 +2,22 @@
 
 #include "library/Library.h"
 #include "library/Version.h"
+#include "media/Decoder.h"
 #include "media/Formats.h"
+#include "platform/win/ClipboardActions.h"
+#include "platform/win/RecycleBin.h"
 #include "platform/win/Paths.h"
 #include "platform/win/ShellActions.h"
 #include "video/VideoProbe.h"
 
 #include <QCoreApplication>
+#include <QDesktopServices>
+#include <QHash>
+#include <QSet>
+#include <QGuiApplication>
+#include <QPointer>
+#include <QThreadPool>
+#include <QWindow>
 #include <QDateTime>
 #include <QDir>
 #include <QFileInfo>
@@ -191,6 +201,152 @@ void AppController::revealInExplorer(qint64 itemId)
     const QString p = itemPath(itemId);
     if (!p.isEmpty())
         platform::revealInExplorer(p);
+}
+
+// --------------------------------------------------------------- 007 : menus contextuels
+
+QStringList AppController::pathsOf(const QVariantList& ids) const
+{
+    QStringList out;
+    for (const QVariant& v : ids) {
+        const QString p = itemPath(v.toLongLong());
+        if (!p.isEmpty())
+            out << p;
+    }
+    return out;
+}
+
+void AppController::copyItems(const QVariantList& ids)
+{
+    const QStringList paths = pathsOf(ids);
+    if (paths.isEmpty())
+        return;
+    if (paths.size() > 1) {
+        platform::copyFilesToClipboard(paths);
+        return;
+    }
+    const auto item = lib_.item(ids.first().toLongLong());
+    if (!item || item->kind != Kind::Image) {
+        platform::copyFilesToClipboard(paths);
+        return;
+    }
+    // Le fichier tout de suite ; l'image décodée hors du fil de l'interface, puis les deux.
+    platform::copyFilesToClipboard(paths);
+    const DecodeRequest req{paths.first(), item->format, QSize(8000, 8000), item->orientation};
+    QPointer<AppController> self(this);
+    QThreadPool::globalInstance()->start([self, req] {
+        auto r = Decoder::decode(req);
+        if (!r || r->image.isNull())
+            return;
+        QImage img = r->image;
+        QMetaObject::invokeMethod(qApp, [self, img, path = req.path] {
+            if (self)
+                platform::copyFilesToClipboard({path}, img);
+        });
+    });
+}
+
+void AppController::copyPaths(const QVariantList& ids)
+{
+    const QStringList paths = pathsOf(ids);
+    if (!paths.isEmpty())
+        platform::copyTextToClipboard(platform::pathsAsText(paths));
+}
+
+void AppController::copyFolderPath(const QString& path)
+{
+    if (!path.isEmpty())
+        platform::copyTextToClipboard(QDir::toNativeSeparators(path));
+}
+
+void AppController::showProperties(const QVariantList& ids)
+{
+    const QStringList paths = pathsOf(ids);
+    QWindow* w = QGuiApplication::focusWindow();
+    platform::showProperties(paths, w ? quintptr(w->winId()) : 0);
+}
+
+void AppController::revealFolder(const QString& path)
+{
+    if (!path.isEmpty())
+        QDesktopServices::openUrl(QUrl::fromLocalFile(path));
+}
+
+bool AppController::canSetWallpaper(qint64 itemId) const
+{
+    const auto item = lib_.item(itemId);
+    return item && item->kind == Kind::Image && platform::wallpaperSupported(item->path());
+}
+
+void AppController::setWallpaper(qint64 itemId)
+{
+    if (!canSetWallpaper(itemId))
+        return;
+    const QString path = itemPath(itemId);
+    QPointer<AppController> self(this);
+    QThreadPool::globalInstance()->start([self, path] {
+        const auto before = platform::snapshotWallpaper();
+        const bool ok = platform::setWallpaper(path);
+        QMetaObject::invokeMethod(qApp, [self, before, ok] {
+            if (!self)
+                return;
+            self->wallpaperBefore_ = ok ? before : std::nullopt;
+            emit self->wallpaperChanged(ok, ok && before && before->restorable);
+        });
+    });
+}
+
+void AppController::undoWallpaper()
+{
+    if (!wallpaperBefore_ || !wallpaperBefore_->restorable)
+        return;
+    const auto snapshot = *wallpaperBefore_;
+    wallpaperBefore_.reset();
+    QPointer<AppController> self(this);
+    QThreadPool::globalInstance()->start([self, snapshot] {
+        const bool ok = platform::restoreWallpaper(snapshot);
+        QMetaObject::invokeMethod(qApp, [self, ok] {
+            if (self)
+                emit self->wallpaperRestored(ok);
+        });
+    });
+}
+
+int AppController::recycleState(const QVariantList& ids)
+{
+    const QStringList paths = pathsOf(ids);
+    if (paths.isEmpty())
+        return 0;
+    // Une seule question par volume ; la réponse est gardée en cache par le cœur.
+    static QHash<QString, int> known; // racine -> 0 / 1 ; absent : en cours
+    static QSet<QString> pending;
+    int state = 1;
+    for (const QString& p : paths) {
+        const QString root = p.left(3).toUpper();
+        const auto it = known.constFind(root);
+        if (it != known.constEnd()) {
+            if (*it == 0)
+                return 0;
+            continue;
+        }
+        state = -1;
+        if (pending.contains(root))
+            continue;
+        pending.insert(root);
+        QPointer<AppController> self(this);
+        QThreadPool::globalInstance()->start([self, p, root] {
+            const bool has = platform::volumeHasRecycleBinCached(p);
+            QMetaObject::invokeMethod(qApp, [self, root, has] {
+                known.insert(root, has ? 1 : 0);
+                pending.remove(root);
+                if (self) {
+                    ++self->recycleRevision_;
+                    emit self->recycleInfoChanged();
+                }
+            });
+        });
+    }
+    return state;
 }
 
 void AppController::openWithDefaultApp(qint64 itemId)

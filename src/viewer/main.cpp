@@ -1,6 +1,7 @@
 // picazoo-viewer.exe : visionneuse autonome (005). Ouvre une photo donnée par Windows
 // dans un voile semi-transparent, sans bibliothèque (research V1 à V4).
 
+#include "browse/ZoomController.h"
 #include "FileImageProvider.h"
 #include "ViewerSession.h"
 #include "ViewerSettings.h"
@@ -149,7 +150,12 @@ void runScript(QQuickWindow* window, QStringList steps)
                                               {QStringLiteral("End"), Qt::Key_End},
                                               {QStringLiteral("F11"), Qt::Key_F11},
                                               {QStringLiteral("I"), Qt::Key_I},
-                                              {QStringLiteral("Escape"), Qt::Key_Escape}};
+                                              {QStringLiteral("Escape"), Qt::Key_Escape},
+                                              // 007
+                                              {QStringLiteral("Up"), Qt::Key_Up},
+                                              {QStringLiteral("Down"), Qt::Key_Down},
+                                              {QStringLiteral("Menu"), Qt::Key_Menu},
+                                              {QStringLiteral("Delete"), Qt::Key_Delete}};
         const int key = keys.value(step.value(1), Qt::Key_unknown);
         QKeyEvent press(QEvent::KeyPress, key, Qt::NoModifier);
         QKeyEvent release(QEvent::KeyRelease, key, Qt::NoModifier);
@@ -163,6 +169,27 @@ void runScript(QQuickWindow* window, QStringList steps)
                           Qt::NoScrollPhase, false);
         QCoreApplication::sendEvent(window, &wheel);
         delay = 60;
+    } else if (kind == u"rclick") { // 007 : clic droit (menu de l'image)
+        const QPointF pos(step.value(1).toDouble(), step.value(2).toDouble());
+        QMouseEvent press(QEvent::MouseButtonPress, pos, window->mapToGlobal(pos), Qt::RightButton, Qt::RightButton,
+                          Qt::NoModifier);
+        QMouseEvent release(QEvent::MouseButtonRelease, pos, window->mapToGlobal(pos), Qt::RightButton, Qt::NoButton,
+                            Qt::NoModifier);
+        QCoreApplication::sendEvent(window, &press);
+        QCoreApplication::sendEvent(window, &release);
+    } else if (kind == u"click") { // 007 : clic gauche (boutons d'un dialogue)
+        const QPointF pos(step.value(1).toDouble(), step.value(2).toDouble());
+        QMouseEvent press(QEvent::MouseButtonPress, pos, window->mapToGlobal(pos), Qt::LeftButton, Qt::LeftButton,
+                          Qt::NoModifier);
+        QMouseEvent release(QEvent::MouseButtonRelease, pos, window->mapToGlobal(pos), Qt::LeftButton, Qt::NoButton,
+                            Qt::NoModifier);
+        QCoreApplication::sendEvent(window, &press);
+        QCoreApplication::sendEvent(window, &release);
+    } else if (kind == u"undo") { // 007 : Ctrl+Z
+        QKeyEvent press(QEvent::KeyPress, Qt::Key_Z, Qt::ControlModifier);
+        QKeyEvent release(QEvent::KeyRelease, Qt::Key_Z, Qt::ControlModifier);
+        QCoreApplication::sendEvent(window, &press);
+        QCoreApplication::sendEvent(window, &release);
     } else if (kind == u"move") {
         const QPointF pos(step.value(1).toDouble(), step.value(2).toDouble());
         QMouseEvent move(QEvent::MouseMove, pos, window->mapToGlobal(pos), Qt::NoButton, Qt::NoButton, Qt::NoModifier);
@@ -245,6 +272,8 @@ int main(int argc, char* argv[])
     engine.addImageProvider(QStringLiteral("photo"), images);
     engine.rootContext()->setContextProperty(QStringLiteral("session"), &session);
     mark("avant QML");
+    // 007 : moteur de zoom commun aux deux visionneuses.
+    qmlRegisterType<picazoo::ZoomController>("Picazoo.Zoom", 1, 0, "ZoomController");
     engine.loadFromModule("PicazooViewer", "Overlay");
     mark("QML chargé");
 

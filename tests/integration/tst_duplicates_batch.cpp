@@ -445,7 +445,7 @@ private slots:
                      "INSERT INTO dup_choice (item_id, keep, decided_at) VALUES (3, 1, 0);");
         }
         auto db = Database::open(path);
-        QCOMPARE(migrateLibrary(*db), 3);
+        QCOMPARE(migrateLibrary(*db), kLibrarySchemaVersion); // 2 -> dernière version
         std::lock_guard lock(db->mutex());
         auto q = db->prepare("SELECT item_id, suggested_keep FROM dup_member ORDER BY item_id");
         QList<int> suggested;

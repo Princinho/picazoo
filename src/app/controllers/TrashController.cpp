@@ -110,6 +110,11 @@ TrashController::TrashController(Library& library, DuplicateEngine& engine, Tras
             msg = OperationState(state) == OperationState::Done
                       ? files(ok) + QStringLiteral(" restaurés à leur emplacement d'origine.")
                       : QStringLiteral("%1 sur %2 restaurés (voir le journal des opérations).").arg(ok).arg(total);
+        if (itemOperations_.remove(id)) {
+            // 007 : la bibliothèque ou la visionneuse affiche son propre message « Annuler ».
+            emit itemsTrashed(id, ok, msg);
+            return;
+        }
         emit finished(msg);
     });
 }
@@ -118,7 +123,54 @@ TrashController::~TrashController()
 {
     ++generation_;
     joinPlanner();
+    if (itemsPlanner_.joinable())
+        itemsPlanner_.join();
 }
+
+void TrashController::prepareItems(const QVariantList& ids)
+{
+    QList<ItemId> items;
+    for (const QVariant& v : ids)
+        items << v.toLongLong();
+    if (itemsPlanner_.joinable())
+        itemsPlanner_.join();
+    const int gen = ++itemsGeneration_;
+    itemsPlanner_ = std::thread([this, items, gen] {
+        TrashPlan plan = service_.planItems(items);
+        QMetaObject::invokeMethod(this, [this, plan = std::move(plan), gen] {
+            if (gen != itemsGeneration_.load())
+                return;
+            itemsPlan_ = plan;
+            QVariantMap m;
+            m.insert(QStringLiteral("count"), int(plan.toTrash.size()));
+            m.insert(QStringLiteral("name"), plan.toTrash.size() == 1 ? platform::lastSegment(plan.toTrash.first().path)
+                                                                      : QString());
+            m.insert(QStringLiteral("size"), AppController::formatBytes(plan.bytes));
+            int noBin = 0, missing = 0;
+            for (const auto& b : plan.blocked)
+                (b.reason == BlockReason::NoRecycleBin ? noBin : missing)++;
+            m.insert(QStringLiteral("noRecycleBin"), noBin);
+            m.insert(QStringLiteral("missing"), missing);
+            emit itemsPlanReady(m);
+        }, Qt::QueuedConnection);
+    });
+}
+
+bool TrashController::confirmItems(const QString& source)
+{
+    if (!itemsPlan_ || itemsPlan_->toTrash.isEmpty())
+        return false;
+    const OperationId id =
+        service_.execute(*itemsPlan_, source == u"viewer" ? OperationSource::Viewer : OperationSource::Library);
+    itemsPlan_.reset();
+    if (id)
+        itemOperations_.insert(id);
+    emit busyChanged();
+    emit journalChanged();
+    return id != 0;
+}
+
+void TrashController::cancelItems() { itemsPlan_.reset(); }
 
 void TrashController::joinPlanner()
 {
@@ -332,9 +384,15 @@ QVariantList TrashController::journal() const
         m.insert(QStringLiteral("id"), o.id);
         m.insert(QStringLiteral("kind"), o.kind);
         m.insert(QStringLiteral("date"), fr.toString(QDateTime::fromMSecsSinceEpoch(o.createdAt), QStringLiteral("d MMMM yyyy 'à' HH:mm")));
+        // 007 : l'origine de l'opération (doublons, bibliothèque, visionneuse).
+        const QString origin = o.source == OperationSource::Library  ? QStringLiteral(" depuis la bibliothèque")
+                               : o.source == OperationSource::Viewer ? QStringLiteral(" depuis la visionneuse")
+                                                                     : QString();
         m.insert(QStringLiteral("title"), o.kind == u"trash"
-                                              ? files(o.fileCount) + QStringLiteral(" mis à la corbeille · ") + AppController::formatBytes(o.bytes)
-                                              : QStringLiteral("Restauration de ") + files(o.fileCount));
+                                              ? files(o.fileCount) + QStringLiteral(" mis à la corbeille") + origin +
+                                                    QStringLiteral(" · ") + AppController::formatBytes(o.bytes)
+                                              : QStringLiteral("Restauration de ") + files(o.fileCount) + origin);
+        m.insert(QStringLiteral("source"), toDb(o.source));
         m.insert(QStringLiteral("state"), stateLabel(o));
         m.insert(QStringLiteral("stopped"), o.stopped);
         m.insert(QStringLiteral("undoable"), o.kind == u"trash" &&

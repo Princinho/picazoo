@@ -250,9 +250,15 @@ Rectangle {
 
                 Menu {
                     id: folderMenu
-                    Action {
+                    width: 300
+                    // 007 : menu du dossier (contracts/ui-contract.md).
+                    PzMenuItem { text: "Afficher dans l'Explorateur"; onTriggered: app.revealFolder(row.path) }
+                    PzMenuItem { text: "Copier le chemin"; onTriggered: app.copyFolderPath(row.path) }
+                    MenuSeparator {}
+                    PzMenuItem {
                         text: "Voir les doublons de ce dossier"
                         enabled: dups.groupCount > 0
+                        tip: dups.groupCount > 0 ? "" : "aucun doublon"
                         onTriggered: root.showDuplicatesOf(row.path)
                     }
                 }

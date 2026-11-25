@@ -56,6 +56,26 @@ private slots:
         PICAZOO_VERIFY_UNTOUCHED(before, t.path());
     }
 
+    // 007 (T045) : la photo mise à la corbeille quitte le parcours tout de suite ; la suivante
+    // (sinon la précédente) prend sa place, sans annonce « supprimée ou déplacée ».
+    void removePathShowsNeighbour()
+    {
+        TempTree t;
+        writePhotos(t, 3);
+        FolderBrowser b;
+        QSignalSpy removed(&b, &FolderBrowser::currentRemoved);
+        b.open(t.file(QStringLiteral("photo2.jpg")));
+        QVERIFY(b.waitForListing(5000));
+        QVERIFY(b.removePath(t.file(QStringLiteral("photo2.jpg"))));
+        QCOMPARE(b.count(), 2);
+        QCOMPARE(b.currentPath(), t.file(QStringLiteral("photo3.jpg")));
+        QVERIFY(b.removePath(t.file(QStringLiteral("photo3.jpg"))));
+        QCOMPARE(b.currentPath(), t.file(QStringLiteral("photo1.jpg"))); // plus de suivante : la précédente
+        QVERIFY(!b.removePath(t.file(QStringLiteral("photo1.jpg"))));
+        QCOMPARE(b.count(), 0);
+        QCOMPARE(removed.count(), 0);
+    }
+
     void wrapsAround()
     {
         TempTree t;

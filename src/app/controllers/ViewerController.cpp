@@ -16,12 +16,35 @@ ViewerController::ViewerController(Library& library, GridRowModel& grid, ViewerI
     : QObject(parent), lib_(library), grid_(grid), images_(images),
       animations_(platform::animationsEnabled())
 {
-    connect(&grid_, &GridRowModel::structureChanged, this, [this] { nav_.setOrder(grid_.flatOrder()); });
+    connect(&grid_, &GridRowModel::structureChanged, this, [this] {
+        const QList<ItemId> before = order_;
+        order_ = grid_.flatOrder();
+        nav_.setOrder(order_);
+        // 007 : l'élément affiché a quitté la bibliothèque (mis à la corbeille) : on passe au
+        // suivant, sinon au précédent ; s'il n'en reste aucun, la visionneuse se ferme.
+        if (current_ == 0 || nav_.indexOf(current_) >= 0)
+            return;
+        const qsizetype i = before.indexOf(current_);
+        if (i < 0)
+            return;
+        for (qsizetype j = i + 1; j < before.size(); ++j)
+            if (nav_.indexOf(before[j]) >= 0) {
+                setCurrent(before[j]);
+                return;
+            }
+        for (qsizetype j = i - 1; j >= 0; --j)
+            if (nav_.indexOf(before[j]) >= 0) {
+                setCurrent(before[j]);
+                return;
+            }
+        emit emptied();
+    });
     connect(&lib_, &Library::itemUpdated, this, [this](qint64 id) {
         if (id == current_)
             refresh();
     });
-    nav_.setOrder(grid_.flatOrder());
+    order_ = grid_.flatOrder();
+    nav_.setOrder(order_);
 }
 
 QString ViewerController::position() const
@@ -48,7 +71,8 @@ void ViewerController::setScreenSize(QSize s)
 
 void ViewerController::open(qint64 itemId)
 {
-    nav_.setOrder(grid_.flatOrder());
+    order_ = grid_.flatOrder();
+    nav_.setOrder(order_);
     setCurrent(itemId);
 }
 
@@ -62,47 +86,6 @@ void ViewerController::previous()
 {
     if (const ItemId p = nav_.previous(current_))
         setCurrent(p);
-}
-
-double ViewerController::fitScale(double iw, double ih, double vw, double vh) const
-{
-    return zoom::fitScale({iw, ih}, {vw, vh});
-}
-
-double ViewerController::clampScale(double s, double iw, double ih, double vw, double vh) const
-{
-    return zoom::clampScale(s, {iw, ih}, {vw, vh});
-}
-
-double ViewerController::wheelFactor(double angleDeltaY) const { return zoom::wheelFactor(angleDeltaY); }
-
-QPointF ViewerController::clampOffset(double ox, double oy, double scale, double iw, double ih, double vw,
-                                      double vh) const
-{
-    return zoom::clampOffset({ox, oy}, scale, {iw, ih}, {vw, vh});
-}
-
-QPointF ViewerController::anchorOnImage(double ax, double ay, double ox, double oy, double scale, double iw, double ih) const
-{
-    return zoom::anchorOnImage({ax, ay}, {ox, oy}, scale, {iw, ih});
-}
-
-QPointF ViewerController::zoomEndOffset(double ox, double oy, double scale, double newScale, double ax, double ay,
-                                  double iw, double ih, double vw, double vh) const
-{
-    return zoom::zoomEndOffset({ox, oy}, scale, newScale, {ax, ay}, {iw, ih}, {vw, vh});
-}
-
-QPointF ViewerController::zoomStepOffset(double sx, double sy, double startScale, double endScale, double ex, double ey,
-                                   double current, double ax, double ay) const
-{
-    return zoom::zoomStepOffset({sx, sy}, startScale, endScale, {ex, ey}, current, {ax, ay});
-}
-
-QPointF ViewerController::clampPan(double ox, double oy, double prevX, double prevY, double scale, double iw, double ih,
-                             double vw, double vh) const
-{
-    return zoom::clampPan({ox, oy}, {prevX, prevY}, scale, {iw, ih}, {vw, vh});
 }
 
 void ViewerController::refresh()

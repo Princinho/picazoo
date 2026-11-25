@@ -1,3 +1,4 @@
+#include "browse/ZoomController.h"
 #include "CrashTrace.h"
 #include "controllers/AppController.h"
 #include "controllers/DuplicatesController.h"
@@ -193,6 +194,8 @@ int main(int argc, char* argv[])
     ctx->setContextProperty(QStringLiteral("dups"), duplicates.get());
     ctx->setContextProperty(QStringLiteral("trash"), trash.get());
 
+    // 007 : moteur de zoom commun aux deux visionneuses.
+    qmlRegisterType<picazoo::ZoomController>("Picazoo.Zoom", 1, 0, "ZoomController");
     engine.loadFromModule("Picazoo", "Main");
 
     QQuickWindow* mainWindow =

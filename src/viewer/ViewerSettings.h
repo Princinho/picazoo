@@ -29,6 +29,7 @@ public:
     QStringList assocFormats() const;
 
     QString filePath() const;
+    QString dataDir() const { return dir_; } // 007 : library.db (journal des opérations)
 
 private:
     void set(const QString& key, const QVariant& value);

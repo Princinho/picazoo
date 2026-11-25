@@ -3,18 +3,26 @@
 #include "FileImageProvider.h"
 #include "ViewerSettings.h"
 
-#include "browse/ZoomMath.h"
+#include "fileops/FileTrash.h"
+#include "fileops/TrashService.h"
+#include "index/Database.h"
+#include "index/Migrator.h"
 #include "media/Decoder.h"
 #include "media/Formats.h"
 #include "media/Metadata.h"
 #include "platform/win/ExplorerOrder.h"
 #include "platform/win/FileAssociations.h"
+#include "platform/win/ClipboardActions.h"
+#include "platform/win/RecycleBin.h"
 #include "platform/win/ShellActions.h"
 #include "platform/win/SystemPrefs.h"
 
 #include <windows.h>
 
 #include <QCoreApplication>
+#include <QGuiApplication>
+#include <QPointer>
+#include <QWindow>
 #include <QDateTime>
 #include <QDir>
 #include <QFileInfo>
@@ -78,6 +86,7 @@ ViewerSession::ViewerSession(FileImageProvider& images, ViewerSettings& settings
     : QObject(parent), images_(images), settings_(settings), screen_(screen)
 {
     infoPool_.setMaxThreadCount(1);
+    fileOps_.setMaxThreadCount(1);
     animations_ = platform::animationsEnabled();
     transparency_ = platform::transparencyEnabled();
     connect(&browser_, &FolderBrowser::currentChanged, this, &ViewerSession::onCurrentChanged);
@@ -314,54 +323,186 @@ void ViewerSession::setStripVisible(bool v)
 
 bool ViewerSession::registered() const { return platform::FileAssociations::isRegistered(); }
 
-// --- Zoom
-
-double ViewerSession::fitScale(double iw, double ih, double vw, double vh) const
-{
-    return zoom::fitScale({iw, ih}, {vw, vh});
-}
-
-double ViewerSession::clampScale(double s, double iw, double ih, double vw, double vh) const
-{
-    return zoom::clampScale(s, {iw, ih}, {vw, vh});
-}
-
-double ViewerSession::wheelFactor(double angleDeltaY) const { return zoom::wheelFactor(angleDeltaY); }
-
-QPointF ViewerSession::zoomAround(double ox, double oy, double scale, double newScale, double ax, double ay) const
-{
-    return zoom::zoomAround({ox, oy}, scale, newScale, {ax, ay});
-}
-
-QPointF ViewerSession::clampOffset(double ox, double oy, double scale, double iw, double ih, double vw, double vh) const
-{
-    return zoom::clampOffset({ox, oy}, scale, {iw, ih}, {vw, vh});
-}
-
-QPointF ViewerSession::anchorOnImage(double ax, double ay, double ox, double oy, double scale, double iw, double ih) const
-{
-    return zoom::anchorOnImage({ax, ay}, {ox, oy}, scale, {iw, ih});
-}
-
-QPointF ViewerSession::zoomEndOffset(double ox, double oy, double scale, double newScale, double ax, double ay,
-                                  double iw, double ih, double vw, double vh) const
-{
-    return zoom::zoomEndOffset({ox, oy}, scale, newScale, {ax, ay}, {iw, ih}, {vw, vh});
-}
-
-QPointF ViewerSession::zoomStepOffset(double sx, double sy, double startScale, double endScale, double ex, double ey,
-                                   double current, double ax, double ay) const
-{
-    return zoom::zoomStepOffset({sx, sy}, startScale, endScale, {ex, ey}, current, {ax, ay});
-}
-
-QPointF ViewerSession::clampPan(double ox, double oy, double prevX, double prevY, double scale, double iw, double ih,
-                             double vw, double vh) const
-{
-    return zoom::clampPan({ox, oy}, {prevX, prevY}, scale, {iw, ih}, {vw, vh});
-}
-
 // --- Actions
+
+// --- 007 : menu de l'image
+
+void ViewerSession::copyImage()
+{
+    const QString path = browser_.currentPath();
+    if (path.isEmpty())
+        return;
+    platform::copyFilesToClipboard({path});
+    if (kindOf(path) != u"image")
+        return;
+    QPointer<ViewerSession> self(this);
+    infoPool_.start([self, path] {
+        const DecodeRequest req{path, formatFromPath(path), QSize(8000, 8000), 1};
+        auto r = Decoder::decode(req);
+        if (!r || r->image.isNull())
+            return;
+        QImage img = r->image;
+        QMetaObject::invokeMethod(qApp, [self, img, path] {
+            if (self)
+                platform::copyFilesToClipboard({path}, img);
+        });
+    });
+}
+
+void ViewerSession::copyPath()
+{
+    if (!browser_.currentPath().isEmpty())
+        platform::copyTextToClipboard(platform::pathsAsText({browser_.currentPath()}));
+}
+
+void ViewerSession::showProperties()
+{
+    if (browser_.currentPath().isEmpty())
+        return;
+    QWindow* w = QGuiApplication::focusWindow();
+    platform::showProperties({browser_.currentPath()}, w ? quintptr(w->winId()) : 0);
+}
+
+bool ViewerSession::canSetWallpaper() const
+{
+    const QString p = browser_.currentPath();
+    return !p.isEmpty() && kindOf(p) == u"image" && platform::wallpaperSupported(p);
+}
+
+void ViewerSession::setWallpaper()
+{
+    if (!canSetWallpaper())
+        return;
+    const QString path = browser_.currentPath();
+    QPointer<ViewerSession> self(this);
+    fileOps_.start([self, path] {
+        const auto before = platform::snapshotWallpaper();
+        const bool ok = platform::setWallpaper(path);
+        QMetaObject::invokeMethod(qApp, [self, before, ok] {
+            if (!self)
+                return;
+            self->wallpaperBefore_ = ok ? before : std::nullopt;
+            emit self->wallpaperChanged(ok, ok && before && before->restorable);
+        });
+    });
+}
+
+void ViewerSession::undoWallpaper()
+{
+    if (!wallpaperBefore_ || !wallpaperBefore_->restorable)
+        return;
+    const auto snapshot = *wallpaperBefore_;
+    wallpaperBefore_.reset();
+    QPointer<ViewerSession> self(this);
+    fileOps_.start([self, snapshot] {
+        const bool ok = platform::restoreWallpaper(snapshot);
+        QMetaObject::invokeMethod(qApp, [self, ok] {
+            if (self)
+                emit self->wallpaperRestored(ok);
+        });
+    });
+}
+
+void ViewerSession::requestRecycleInfo()
+{
+    const QString path = browser_.currentPath();
+    if (path.isEmpty() || path == recycleFor_)
+        return;
+    recycleFor_ = path;
+    recycleState_ = -1;
+    emit recycleStateChanged();
+    QPointer<ViewerSession> self(this);
+    fileOps_.start([self, path] {
+        const bool has = platform::volumeHasRecycleBinCached(path);
+        QMetaObject::invokeMethod(qApp, [self, path, has] {
+            if (!self || self->recycleFor_ != path)
+                return;
+            self->recycleState_ = has ? 1 : 0;
+            emit self->recycleStateChanged();
+        });
+    });
+}
+
+void ViewerSession::trashCurrent()
+{
+    const QString path = browser_.currentPath();
+    if (path.isEmpty())
+        return;
+    const QString dataDir = settings_.dataDir();
+    auto db = db_;
+    QPointer<ViewerSession> self(this);
+    fileOps_.start([self, path, dataDir, db]() mutable {
+        QString error;
+        OperationId op = 0;
+        QString result;
+        try {
+            if (!db) {
+                QDir().mkpath(dataDir);
+                db = std::shared_ptr<Database>(Database::open(QDir(dataDir).filePath(QStringLiteral("library.db"))));
+                migrateLibrary(*db);
+            }
+            const auto entry = FileTrash::describe(path);
+            if (!entry) {
+                error = QStringLiteral("Cette photo est introuvable : rien n'a été mis à la corbeille.");
+            } else {
+                FileTrash trash(*db);
+                op = trash.trash({*entry}, OperationSource::Viewer);
+                std::lock_guard lock(db->mutex());
+                auto q = db->prepare("SELECT result FROM file_operation_entry WHERE operation_id = ?");
+                q.bind(1, op);
+                if (q.step())
+                    result = q.text(0);
+            }
+        } catch (const std::exception& e) {
+            error = QStringLiteral("Le journal de Picazoo est inaccessible : rien n'a été mis à la corbeille (%1).")
+                        .arg(QString::fromUtf8(e.what()));
+        }
+        if (error.isEmpty() && result != u"trashed")
+            error = resultLabel(result);
+        QMetaObject::invokeMethod(qApp, [self, db, op, path, error] {
+            if (!self)
+                return;
+            self->db_ = db;
+            if (!error.isEmpty()) {
+                emit self->message(error);
+                return;
+            }
+            self->lastTrashed_ = path;
+            self->direction_ = 1;
+            const QString name = QFileInfo(path).fileName();
+            if (!self->browser_.removePath(path)) {
+                emit self->trashed(op, name);
+                emit self->quitRequested(); // plus aucune photo dans le dossier
+                return;
+            }
+            emit self->positionChanged();
+            emit self->trashed(op, name);
+        });
+    });
+}
+
+void ViewerSession::undoTrash(qint64 operationId)
+{
+    auto db = db_;
+    if (!db || !operationId)
+        return;
+    const QString path = lastTrashed_;
+    QPointer<ViewerSession> self(this);
+    fileOps_.start([self, db, operationId, path] {
+        int restored = 0;
+        FileTrash(*db).restore(operationId, &restored);
+        QMetaObject::invokeMethod(qApp, [self, restored, path] {
+            if (!self)
+                return;
+            if (restored > 0 && QFileInfo::exists(path)) {
+                self->open(path, self->foreground_);
+                emit self->message(QStringLiteral("Photo restaurée à son emplacement d'origine."));
+            } else {
+                emit self->message(QStringLiteral("La photo n'a pas pu être restaurée (voir le journal de Picazoo)."));
+            }
+        });
+    });
+}
 
 void ViewerSession::revealInExplorer()
 {

@@ -18,6 +18,10 @@ bool volumeHasRecycleBin(const QString& path);
 
 enum class RecycleResult { Recycled, NoRecycleBin, Locked, Missing, Failed };
 
+// 007 : même réponse, mise en cache par racine de volume (menus contextuels). Hors du fil de
+// l'interface au premier appel pour un volume.
+bool volumeHasRecycleBinCached(const QString& path);
+
 // Met `path` à la corbeille, jamais d'effacement définitif.
 RecycleResult moveToRecycleBin(const QString& path, QString* message = nullptr);
 

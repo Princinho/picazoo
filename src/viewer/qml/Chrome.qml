@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import Picazoo.Zoom
 
 // Commandes, messages et cartes de la visionneuse autonome. Chargé après le premier
 // affichage de la photo : Qt Quick Controls ne retarde pas l'ouverture (research V2).
@@ -10,16 +11,63 @@ Item {
     required property var stage
     anchors.fill: parent
 
-    readonly property bool popupOpen: moreMenu.visible || statusPopup.visible
+    readonly property bool popupOpen: moreMenu.visible || statusPopup.visible || imageMenu.visible || trashConfirm.visible
     readonly property bool hovering: controlsHover.hovered || topHover.hovered || stripHover.hovered
 
     function toast(text) {
+        toastBox.action = null
         toastLabel.text = text
+        toastTimer.interval = 1800
         toastBox.opacity = 1
         toastTimer.restart()
     }
+    // 007 : message avec « Annuler » (corbeille, fond d'écran), 8 s.
+    function toastWithUndo(text, action) {
+        toastBox.action = action
+        toastLabel.text = text
+        toastTimer.interval = 8000
+        toastBox.opacity = 1
+        toastTimer.restart()
+    }
+    function undoToast() {
+        if (toastBox.opacity > 0 && toastBox.action) {
+            const a = toastBox.action
+            toastBox.action = null
+            toastBox.opacity = 0
+            a()
+            return true
+        }
+        return false
+    }
+    // 007 : menu de l'image ; (x, y) < 0 : au centre (touche Menu, Maj+F10).
+    function openImageMenu(x, y) {
+        stage.stopZoom()
+        if (x < 0 || y < 0)
+            imageMenu.openAt(chrome.width / 2, chrome.height / 2)
+        else
+            imageMenu.openAt(x, y)
+    }
+    function askTrash() {
+        if (session.currentPath === "")
+            return
+        session.requestRecycleInfo()
+        if (session.recycleState === 0) {
+            toast("Ce disque n'a pas de corbeille : Picazoo ne supprime pas cette photo.")
+            return
+        }
+        trashConfirm.ask({ count: 1, name: session.currentName, size: session.info.size || "",
+                           noRecycleBin: 0, missing: 0 })
+    }
     // Ferme un menu ou une fenêtre ouverte ; vrai s'il y en avait une.
     function closePopups() {
+        if (imageMenu.visible) {
+            imageMenu.close()
+            return true
+        }
+        if (trashConfirm.visible) {
+            trashConfirm.reject()
+            return true
+        }
         if (moreMenu.visible) {
             moreMenu.close()
             return true
@@ -238,8 +286,8 @@ Item {
             imageActions: stage.currentReady
             onPrevious: session.previous()
             onNext: session.next()
-            onZoomIn: stage.zoomBy(1.25)
-            onZoomOut: stage.zoomBy(1 / 1.25)
+            onZoomIn: stage.zoomStep(+1, ZoomController.Button, false)
+            onZoomOut: stage.zoomStep(-1, ZoomController.Button, false)
             onFit: stage.fit()
             onActualSize: stage.actualSize()
             onToggleInfo: win.showInfo = !win.showInfo
@@ -266,13 +314,42 @@ Item {
         visible: session.proposalVisible
     }
 
+    ImageContextMenu {
+        id: imageMenu
+        win: chrome.win
+        stage: chrome.stage
+        onTrashRequested: chrome.askTrash()
+    }
+    TrashConfirm {
+        id: trashConfirm
+        onConfirmed: session.trashCurrent()
+    }
+    Connections {
+        target: session
+        function onTrashed(operationId, name) {
+            chrome.toastWithUndo("« " + name + " » mis à la corbeille", () => session.undoTrash(operationId))
+        }
+        function onWallpaperChanged(ok, restorable) {
+            if (!ok)
+                chrome.toast("Windows a refusé de changer le fond d'écran.")
+            else if (restorable)
+                chrome.toastWithUndo("Fond d'écran changé", () => session.undoWallpaper())
+            else
+                chrome.toast("Fond d'écran changé. L'ancien fond ne pourra pas être rétabli automatiquement.")
+        }
+        function onWallpaperRestored(ok) {
+            chrome.toast(ok ? "Ancien fond d'écran rétabli." : "L'ancien fond d'écran n'a pas pu être rétabli.")
+        }
+    }
+
     // Bandeau bref
     Rectangle {
         id: toastBox
+        property var action: null
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.top: parent.top
         anchors.topMargin: 96
-        width: toastLabel.implicitWidth + 40
+        width: toastRow.implicitWidth + 40
         height: 44
         radius: 22
         color: Theme.pill
@@ -280,10 +357,28 @@ Item {
         opacity: 0
         visible: opacity > 0
         Behavior on opacity { NumberAnimation { duration: 200 } }
-        Label {
-            id: toastLabel
+        Row {
+            id: toastRow
             anchors.centerIn: parent
-            color: Theme.text
+            spacing: 14
+            Label {
+                id: toastLabel
+                anchors.verticalCenter: parent.verticalCenter
+                color: Theme.text
+            }
+            Label {
+                visible: toastBox.action !== null
+                anchors.verticalCenter: parent.verticalCenter
+                text: "Annuler"
+                color: Theme.accentText
+                font.weight: Font.DemiBold
+                MouseArea {
+                    anchors.fill: parent
+                    anchors.margins: -8
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: chrome.undoToast()
+                }
+            }
         }
         Timer {
             id: toastTimer

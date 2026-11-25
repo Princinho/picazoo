@@ -47,25 +47,12 @@ public:
     Q_INVOKABLE void previous();
     Q_INVOKABLE void refresh();
 
-    // Zoom : mêmes calculs que la visionneuse autonome (browse/ZoomMath).
     bool animations() const { return animations_; }
-    Q_INVOKABLE double fitScale(double iw, double ih, double vw, double vh) const;
-    Q_INVOKABLE double clampScale(double s, double iw, double ih, double vw, double vh) const;
-    Q_INVOKABLE double wheelFactor(double angleDeltaY) const;
-    Q_INVOKABLE QPointF clampOffset(double ox, double oy, double scale, double iw, double ih, double vw,
-                                    double vh) const;
-    Q_INVOKABLE QPointF anchorOnImage(double ax, double ay, double ox, double oy, double scale, double iw,
-                                      double ih) const;
-    Q_INVOKABLE QPointF zoomEndOffset(double ox, double oy, double scale, double newScale, double ax, double ay,
-                                      double iw, double ih, double vw, double vh) const;
-    Q_INVOKABLE QPointF zoomStepOffset(double sx, double sy, double startScale, double endScale, double ex,
-                                       double ey, double current, double ax, double ay) const;
-    Q_INVOKABLE QPointF clampPan(double ox, double oy, double prevX, double prevY, double scale, double iw,
-                                 double ih, double vw, double vh) const;
 
 signals:
     void currentChanged();
     void screenSizeChanged();
+    void emptied(); // 007 : plus aucun élément à afficher (tout a été mis à la corbeille)
 
 private:
     void setCurrent(qint64 id);
@@ -76,6 +63,7 @@ private:
     GridRowModel& grid_;
     ViewerImageProvider& images_;
     picazoo::Navigation nav_;
+    QList<picazoo::ItemId> order_; // ordre connu au dernier changement de la grille
     qint64 current_ = 0;
     QVariantMap info_;
     QVariantList strip_;

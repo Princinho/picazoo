@@ -3,6 +3,8 @@
 // Pont entre le cœur et le QML : dossiers surveillés, analyse, préférences,
 // actions sur les éléments (Explorateur, application par défaut).
 
+#include "platform/win/Wallpaper.h"
+
 #include <QObject>
 #include <QStringList>
 #include <QUrl>
@@ -23,6 +25,8 @@ class AppController : public QObject {
     Q_PROPERTY(QString itemSort READ itemSort WRITE setItemSort NOTIFY sortChanged)
     Q_PROPERTY(qint64 lastFolderId READ lastFolderId WRITE setLastFolderId NOTIFY lastFolderChanged)
     Q_PROPERTY(QString version READ version CONSTANT)
+    // 007 : incrémenté quand une réponse « ce disque a-t-il une corbeille ? » arrive.
+    Q_PROPERTY(int recycleRevision READ recycleRevision NOTIFY recycleInfoChanged)
 
 public:
     explicit AppController(picazoo::Library& library, QObject* parent = nullptr);
@@ -62,6 +66,21 @@ public:
     Q_INVOKABLE static QString formatBytes(qint64 bytes);
     Q_INVOKABLE static QString urlToPath(const QUrl& url);
 
+    // --- 007 : actions des menus contextuels (contracts/ui-contract.md)
+    // Copier : une photo -> image + fichier ; sinon fichiers seulement (coller copie, ne déplace jamais).
+    Q_INVOKABLE void copyItems(const QVariantList& ids);
+    Q_INVOKABLE void copyPaths(const QVariantList& ids);
+    Q_INVOKABLE void copyFolderPath(const QString& path);
+    Q_INVOKABLE void showProperties(const QVariantList& ids);
+    Q_INVOKABLE void revealFolder(const QString& path);
+    Q_INVOKABLE bool canSetWallpaper(qint64 itemId) const;
+    Q_INVOKABLE void setWallpaper(qint64 itemId);
+    Q_INVOKABLE void undoWallpaper();
+    // 1 : tous sur un disque avec corbeille ; 0 : au moins un sans ; -1 : pas encore connu (la
+    // réponse arrive par recycleInfoChanged, sans bloquer l'interface).
+    Q_INVOKABLE int recycleState(const QVariantList& ids);
+    int recycleRevision() const { return recycleRevision_; }
+
 signals:
     void rootsChanged();
     void progressChanged();
@@ -71,7 +90,15 @@ signals:
     void showItem(qint64 itemId);
     void showMessage(const QString& message);
     void askAddFolder(const QString& folder);
+    void recycleInfoChanged();
+    // Fond d'écran changé (`ok`) ; `restorable` : « Annuler » peut rétablir l'ancien.
+    void wallpaperChanged(bool ok, bool restorable);
+    void wallpaperRestored(bool ok);
 
 private:
+    QStringList pathsOf(const QVariantList& ids) const;
+
     picazoo::Library& lib_;
+    int recycleRevision_ = 0;
+    std::optional<picazoo::platform::WallpaperSnapshot> wallpaperBefore_;
 };

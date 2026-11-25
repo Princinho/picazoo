@@ -54,12 +54,21 @@ public:
     Q_INVOKABLE QVariantMap operationDetails(qint64 operationId) const;
     Q_INVOKABLE bool undo(qint64 operationId);
 
+    // 007 : « Mettre à la corbeille… » depuis la bibliothèque ou la visionneuse intégrée. Le plan
+    // est préparé hors du fil de l'interface et arrive par itemsPlanReady ; confirmItems() exécute
+    // le dernier plan préparé ; itemsTrashed() annonce le résultat (message « Annuler »).
+    Q_INVOKABLE void prepareItems(const QVariantList& ids);
+    Q_INVOKABLE bool confirmItems(const QString& source); // "library" | "viewer"
+    Q_INVOKABLE void cancelItems();
+
 signals:
     void busyChanged();
     void progressChanged();
     void planChanged();
     void journalChanged();
     void finished(const QString& message);
+    void itemsPlanReady(const QVariantMap& plan);
+    void itemsTrashed(qint64 operationId, int count, const QString& message);
 
 private:
     QVariantMap describe() const;
@@ -76,6 +85,10 @@ private:
     bool preparing_ = false;
     std::thread planner_;
     std::atomic<int> generation_{0};
+    std::optional<picazoo::TrashPlan> itemsPlan_;
+    QSet<qint64> itemOperations_; // opérations lancées par confirmItems()
+    std::thread itemsPlanner_;
+    std::atomic<int> itemsGeneration_{0};
     QString progressText_;
     double progressValue_ = 0;
 };

@@ -173,6 +173,22 @@ minutes.
   vérifiées exclues par défaut ; la corbeille ne porte que sur les groupes
   sélectionnés (ou le groupe courant) ; une opération en cours peut être arrêtée.
 
+## Fonctionnalité 007 — ergonomie des visionneuses et clic droit
+
+- **Plein écran** (visionneuse intégrée) : un bouton « Quitter le plein écran »
+  apparaît en haut à droite dès que la souris bouge.
+- **Zoom** plus doux, avec de l'élan après un tour de molette rapide, dans les
+  deux visionneuses ; un geste de zoom avant commencé sous 90 % s'arrête à
+  100 % (un nouveau geste va au-delà).
+- **Clavier** : ↑ / ↓ zooment, ← / → changent de photo ; Suppr met à la
+  corbeille, Ctrl + C copie l'image, Ctrl + Maj + C copie le chemin,
+  Alt + Entrée ouvre les Propriétés, touche Menu ou Maj + F10 ouvre le menu.
+- **Clic droit** partout : vignettes (une ou plusieurs), zone vide de la grille,
+  dossiers, image des deux visionneuses. Copier, copier le chemin, Propriétés de
+  Windows, définir comme fond d'écran (annulable), mettre à la corbeille (après
+  confirmation, au journal des opérations et annulable, y compris depuis la
+  visionneuse autonome).
+
 Photos de test pour essayer l'écran « Doublons » à la main :
 
 ```powershell
