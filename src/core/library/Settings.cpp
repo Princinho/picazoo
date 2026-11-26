@@ -23,6 +23,8 @@ const QHash<QString, QVariant>& defaults()
         {QStringLiteral("duplicates_enabled"), 1},
         {QStringLiteral("duplicates_paused"), 0},
         {QStringLiteral("duplicates_level_filter"), QStringLiteral("all")},
+        // Images liées (003)
+        {QStringLiteral("naming_include_generic_roots"), 0},
     };
     return d;
 }
@@ -58,7 +60,8 @@ QVariant Settings::sanitize(const QString& key, const QVariant& value)
         const int v = value.toInt(&ok);
         return ok ? std::clamp(v, 64, 320) : defaultValue(key);
     }
-    if (key == u"onboarding_done" || key == u"duplicates_enabled" || key == u"duplicates_paused")
+    if (key == u"onboarding_done" || key == u"duplicates_enabled" || key == u"duplicates_paused" ||
+        key == u"naming_include_generic_roots")
         return value.toInt() != 0 ? 1 : 0;
     const auto it = choices().constFind(key);
     if (it != choices().constEnd())

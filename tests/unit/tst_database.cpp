@@ -22,7 +22,8 @@ private slots:
         QCOMPARE(migrateLibrary(*db), kLibrarySchemaVersion); // idempotent
         for (const char* table : {"watched_root", "excluded_path", "folder", "item", "settings", "item_fingerprint",
                                   "dup_group", "dup_member", "dup_choice", "dup_decision", "file_operation",
-                                  "file_operation_entry"}) {
+                                  "file_operation_entry", "naming_group", "naming_member", "naming_decision",
+                                  "naming_exclusion"}) {
             auto q = db->prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?");
             q.bind(1, QString::fromLatin1(table));
             QVERIFY2(q.step(), table);
@@ -50,7 +51,7 @@ private slots:
                      " VALUES ('trash', 0, 'done', 1, 10)");
         }
         auto db = Database::open(path);
-        QCOMPARE(migrateLibrary(*db), 4);
+        QCOMPARE(migrateLibrary(*db), kLibrarySchemaVersion);
         std::lock_guard lock(db->mutex());
         auto q = db->prepare("SELECT source FROM file_operation");
         QVERIFY(q.step());

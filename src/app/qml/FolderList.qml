@@ -8,8 +8,10 @@ Rectangle {
     color: Theme.sidebar
     property var currentFolderId: 0
     property bool duplicatesActive: false
+    property bool relatedActive: false
     signal folderClicked(var id)
     signal duplicatesClicked()
+    signal relatedClicked()
     signal showDuplicatesOf(string path) // 006 : « Voir les doublons de ce dossier »
 
     onCurrentFolderIdChanged: {
@@ -119,6 +121,58 @@ Rectangle {
                 hoverEnabled: true
                 cursorShape: Qt.PointingHandCursor
                 onClicked: root.duplicatesClicked()
+            }
+        }
+
+        // Entrée « Images liées » (003) : visible dès qu'un groupe existe, sous « Doublons ».
+        Rectangle {
+            visible: naming !== null && (naming.groupCount > 0 || root.relatedActive)
+            Layout.fillWidth: true
+            Layout.topMargin: dupEntry.visible ? -8 : 0
+            implicitHeight: 52
+            radius: 8
+            color: root.relatedActive ? Theme.accentBg : (relatedMouse.containsMouse ? Theme.hover : "transparent")
+            Accessible.role: Accessible.Button
+            Accessible.name: "Images liées — " + (naming ? naming.summaryText : "")
+            Accessible.onPressAction: root.relatedClicked()
+            RowLayout {
+                anchors.fill: parent
+                anchors.leftMargin: 8
+                anchors.rightMargin: 8
+                spacing: 10
+                Rectangle {
+                    Layout.preferredWidth: 34
+                    Layout.preferredHeight: 34
+                    radius: 7
+                    color: root.relatedActive ? "#24456A" : "#252B35"
+                    Label {
+                        anchors.centerIn: parent
+                        text: Theme.iconRelated
+                        font.family: Theme.iconFont
+                        color: root.relatedActive ? Theme.accentText : Theme.text3
+                        font.pixelSize: 15
+                        Accessible.ignored: true
+                    }
+                }
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    spacing: 1
+                    Label { text: "Images liées"; color: Theme.text; font.weight: Font.DemiBold }
+                    Label {
+                        Layout.fillWidth: true
+                        text: naming ? naming.summaryText : ""
+                        elide: Text.ElideRight
+                        font.pixelSize: 12
+                        color: Theme.text3
+                    }
+                }
+            }
+            MouseArea {
+                id: relatedMouse
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onClicked: root.relatedClicked()
             }
         }
 

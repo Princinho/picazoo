@@ -113,6 +113,10 @@ ApplicationWindow {
                 v.openContextMenu(-1, -1)
             return
         }
+        if (name === "naming") {
+            libraryView.showNamingGroup(0)
+            return
+        }
         libraryView.showGroup(0)
         if (name === "summary") {
             dups.groups.selectAll()
@@ -294,6 +298,18 @@ ApplicationWindow {
         function onShowGroupRequested(groupId) {
             win.viewerOpen = false
             libraryView.showGroup(groupId)
+        }
+    }
+    // Images liées (003) : « Voir le groupe » depuis la visionneuse.
+    Connections {
+        target: win.ready ? naming : null
+        function onShowGroupRequested(groupId) {
+            win.viewerOpen = false
+            libraryView.showNamingGroup(groupId)
+        }
+        function onFailed(message) {
+            storageDialog.message = message
+            storageDialog.open()
         }
     }
     Connections {

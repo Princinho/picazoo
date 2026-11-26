@@ -12,6 +12,9 @@ FocusScope {
 
     // Écran « Doublons » (002) à la place de la grille.
     property bool showDuplicates: false
+    // Écran « Images liées » (003), de la même façon ; un seul des deux à la fois.
+    property bool showNaming: false
+    readonly property bool showGrid: !showDuplicates && !showNaming
 
     // Développement (PICAZOO_DEV_SCREEN=grid-menu, 007) : menu des deux premières vignettes.
     function devItemMenu() {
@@ -21,12 +24,13 @@ FocusScope {
         grid.openItemMenu(true)
     }
     function revealItem(id) {
-        if (!root.showDuplicates)
+        if (root.showGrid)
             grid.revealItem(id)
     }
-    // « Ouvrir dans Picazoo » (005) : revient à la grille depuis l'écran « Doublons ».
+    // « Ouvrir dans Picazoo » (005) : revient à la grille depuis les écrans de revue.
     function showItemInGrid(id) {
         root.showDuplicates = false
+        root.showNaming = false
         grid.revealItem(id)
         grid.forceActiveFocus()
     }
@@ -42,9 +46,18 @@ FocusScope {
             dups.groups.selectAll()
     }
     function showGroup(groupId) {
+        root.showNaming = false
         root.showDuplicates = true
         duplicatesView.focusGroup(groupId)
         duplicatesView.forceActiveFocus()
+    }
+    function showNamingGroup(groupId) {
+        if (naming === null)
+            return
+        root.showDuplicates = false
+        root.showNaming = true
+        relatedView.item.focusGroup(groupId)
+        relatedView.item.forceActiveFocus()
     }
 
     Rectangle {
@@ -62,6 +75,7 @@ FocusScope {
             onWatchedFolders: root.watchedFolders()
             onOperationLog: root.operationLog()
             onShowDuplicates: root.showGroup(0)
+            onShowRelated: root.showNamingGroup(0)
         }
 
         SplitView {
@@ -77,10 +91,13 @@ FocusScope {
                 id: folderList
                 SplitView.preferredWidth: 288
                 SplitView.minimumWidth: 200
-                currentFolderId: root.showDuplicates ? 0 : grid.topFolderId
+                currentFolderId: root.showGrid ? grid.topFolderId : 0
                 duplicatesActive: root.showDuplicates
+                relatedActive: root.showNaming
+                onRelatedClicked: root.showNamingGroup(0)
                 onFolderClicked: id => {
                     root.showDuplicates = false
+                    root.showNaming = false
                     grid.jumpToFolder(id)
                     grid.forceActiveFocus()
                 }
@@ -97,9 +114,27 @@ FocusScope {
                 ThumbGrid {
                     id: grid
                     anchors.fill: parent
-                    visible: !root.showDuplicates
-                    focus: !root.showDuplicates
+                    visible: root.showGrid
+                    focus: root.showGrid
                     onOpenItem: id => root.openItem(id)
+                }
+
+                // Chargé seulement à l'ouverture de l'écran (et si le module des images liées
+                // existe) : rien ne tourne pour lui tant qu'on ne s'en sert pas.
+                Loader {
+                    id: relatedView
+                    anchors.fill: parent
+                    active: naming !== null && root.showNaming
+                    visible: root.showNaming
+                    focus: root.showNaming
+                    sourceComponent: RelatedImages {
+                        focus: true
+                        onOpenItem: id => root.openItem(id)
+                        onBack: {
+                            root.showNaming = false
+                            grid.forceActiveFocus()
+                        }
+                    }
                 }
 
                 Duplicates {
@@ -118,7 +153,7 @@ FocusScope {
 
         // Barre du bas : compteur, sélection, tris, taille des vignettes.
         Rectangle {
-            visible: !root.showDuplicates
+            visible: root.showGrid
             Layout.fillWidth: true
             Layout.preferredHeight: 52
             color: Theme.panel

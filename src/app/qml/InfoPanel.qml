@@ -8,6 +8,9 @@ Rectangle {
     property var info: ({})
     // Doublons (002) : nombre d'autres copies du même groupe.
     readonly property int duplicateCount: dups && root.info.id ? dups.duplicateCount(root.info.id) : 0
+    // Images liées (003) : groupe de l'élément, relu à chaque changement des groupes.
+    readonly property var relatedGroup: naming && naming.revision >= 0 && root.info.id
+                                        ? naming.groupOf(root.info.id) : ({})
     color: Theme.viewerPanel
 
     Rectangle { anchors.left: parent.left; width: 1; height: parent.height; color: Theme.viewerLine }
@@ -67,6 +70,31 @@ Rectangle {
                 background: Rectangle {
                     radius: 8
                     color: dupBtn.hovered ? Theme.hover : "#1A1D23"
+                    border.color: Theme.lineStrong
+                }
+            }
+        }
+        RowLayout {
+            visible: root.relatedGroup.id !== undefined
+            Layout.fillWidth: true
+            spacing: 10
+            Label {
+                Layout.fillWidth: true
+                text: visible ? "Fait partie du groupe « " + root.relatedGroup.name + " » ("
+                                + root.relatedGroup.count + " éléments)" : ""
+                wrapMode: Text.WordWrap
+                color: Theme.accentText
+            }
+            Button {
+                id: relatedBtn
+                focusPolicy: Qt.NoFocus
+                implicitHeight: 32
+                Accessible.name: "Voir le groupe"
+                onClicked: naming.showGroup(root.relatedGroup.id)
+                contentItem: Label { text: "Voir le groupe"; color: Theme.text; verticalAlignment: Text.AlignVCenter }
+                background: Rectangle {
+                    radius: 8
+                    color: relatedBtn.hovered ? Theme.hover : "#1A1D23"
                     border.color: Theme.lineStrong
                 }
             }

@@ -2,6 +2,7 @@
 #include "CrashTrace.h"
 #include "controllers/AppController.h"
 #include "controllers/DuplicatesController.h"
+#include "controllers/NamingController.h"
 #include "controllers/OnboardingController.h"
 #include "controllers/TrashController.h"
 #include "duplicates/DuplicateEngine.h"
@@ -10,6 +11,8 @@
 #include "providers/ViewerImageProvider.h"
 #include "index/Database.h"
 #include "library/Library.h"
+#include "naming/NamingEngine.h"
+#include "naming/NamingStore.h"
 #include "models/FolderTreeModel.h"
 #include "models/GridRowModel.h"
 #include "models/ItemSelection.h"
@@ -19,6 +22,7 @@
 #include <windows.h>
 
 #include <QAbstractNativeEventFilter>
+#include <QDebug>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -168,6 +172,21 @@ int main(int argc, char* argv[])
         trash = std::make_unique<TrashController>(*library, *dupEngine, *trashService);
     }
 
+    // Images liées (003) : repérage d'après les seuls noms indexés. Détruits avant la bibliothèque.
+    std::unique_ptr<picazoo::NamingStore> namingStore;
+    std::unique_ptr<picazoo::NamingEngine> namingEngine;
+    std::unique_ptr<NamingController> naming;
+    if (library) {
+        try {
+            namingStore = std::make_unique<picazoo::NamingStore>(
+                QDir(library->dataDir()).filePath(QStringLiteral("library.db")));
+            namingEngine = std::make_unique<picazoo::NamingEngine>(*library, *namingStore);
+            naming = std::make_unique<NamingController>(*library, *namingEngine);
+        } catch (const picazoo::DbError& e) {
+            qWarning() << "Images liées :" << e.what();
+        }
+    }
+
     // Le moteur QML est détruit avant les modèles, la visionneuse et la bibliothèque qu'il
     // référence. (La visionneuse ne touche pas à son fournisseur d'images en se détruisant.)
     std::unique_ptr<ViewerController> viewer;
@@ -194,6 +213,7 @@ int main(int argc, char* argv[])
     ctx->setContextProperty(QStringLiteral("selection"), selection.get());
     ctx->setContextProperty(QStringLiteral("dups"), duplicates.get());
     ctx->setContextProperty(QStringLiteral("trash"), trash.get());
+    ctx->setContextProperty(QStringLiteral("naming"), naming.get());
 
     // 007 : moteur de zoom commun aux deux visionneuses.
     qmlRegisterType<picazoo::ZoomController>("Picazoo.Zoom", 1, 0, "ZoomController");
@@ -218,7 +238,7 @@ int main(int argc, char* argv[])
     if (controller && !showPath.isEmpty())
         QTimer::singleShot(300, controller.get(), [c = controller.get(), showPath] { c->showPath(showPath); });
 
-    // PICAZOO_DEV_SCREEN=duplicates|summary|log|dossiers|aside|selection (développement) : ouvre cet écran au démarrage.
+    // PICAZOO_DEV_SCREEN=duplicates|summary|log|dossiers|aside|selection|naming (développement) : ouvre cet écran au démarrage.
     if (qEnvironmentVariableIsSet("PICAZOO_DEV_SCREEN") && !engine.rootObjects().isEmpty()) {
         QObject* root = engine.rootObjects().first();
         QTimer::singleShot(1500, root, [root] {

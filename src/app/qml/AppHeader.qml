@@ -9,6 +9,7 @@ Rectangle {
     signal watchedFolders()
     signal operationLog()
     signal showDuplicates()
+    signal showRelated()
 
     implicitHeight: 56
     color: Theme.panel
@@ -214,6 +215,7 @@ Rectangle {
     }
     Menu {
         id: toolsMenu
+        width: 520
         Action { text: "Dossiers surveillés…"; onTriggered: root.watchedFolders() }
         Action { text: "Réanalyser les dossiers"; shortcut: "F5"; onTriggered: app.rescan() }
         MenuSeparator {}
@@ -225,6 +227,16 @@ Rectangle {
             onTriggered: dups.autoSearch = checked
         }
         Action { text: "Rechercher les doublons maintenant"; onTriggered: dups.rescan() }
+        MenuSeparator {}
+        Action { text: "Images liées"; enabled: naming !== null; onTriggered: root.showRelated() }
+        Action {
+            text: "Inclure les noms donnés par l'appareil (IMG_, DSC_…) dans les images liées"
+            enabled: naming !== null
+            checkable: true
+            checked: naming !== null && naming.includeGeneric
+            onTriggered: naming.includeGeneric = checked
+        }
+        MenuSeparator {}
         Action { text: "Journal des opérations…"; onTriggered: root.operationLog() }
     }
 }
