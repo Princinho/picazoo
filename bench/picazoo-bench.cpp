@@ -24,6 +24,7 @@
 #include "platform/win/FileIO.h"
 #include "platform/win/CpuInfo.h"
 #include "platform/win/FileIdentity.h"
+#include "platform/win/MemoryInfo.h"
 
 #include <QFileInfo>
 
@@ -154,6 +155,10 @@ void benchScan(const QString& work, int items, bool warm, bool indexOnly, QSize 
                        .arg(lib->itemCount())
                        .arg(total, 0, 'f', 1)
                        .arg(items / std::max(0.001, total), 0, 'f', 1);
+            // 008 — pic de mémoire du processus pendant le scan (FR-008, SC-001/SC-002) :
+            // GetProcessMemoryInfo rapporte déjà le maximum atteint depuis le lancement.
+            const qint64 peakBytes = platform::processPeakWorkingSetBytes();
+            report("Pic de mémoire pendant le scan", peakBytes / (1024.0 * 1024.0), "Mo", 1500);
         }
     }
     if (warm) {

@@ -27,7 +27,8 @@ struct StoredThumb {
 
 class ThumbStore {
 public:
-    explicit ThumbStore(const QString& path);
+    // cacheBytesPerConnection <= 0 : cache_size par défaut (voir Database::open).
+    explicit ThumbStore(const QString& path, qint64 cacheBytesPerConnection = 0);
     ~ThumbStore();
 
     // Vide si absente ou si la version ne correspond plus.

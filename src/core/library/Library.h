@@ -5,6 +5,7 @@
 // Garantie : aucune écriture dans les dossiers de l'utilisateur.
 
 #include "index/LibraryDb.h"
+#include "jobs/MemoryBudget.h"
 #include "library/Types.h"
 
 #include <QImage>
@@ -77,6 +78,8 @@ public:
     // Accès pour les modules qui s'appuient sur le cœur (US3, US4) et les tests.
     ThumbnailPipeline& pipeline() { return *pipeline_; }
     QString dataDir() const { return dataDir_; }
+    // Budget mémoire du scan (008), calculé une fois à l'ouverture (research B2).
+    MemoryBudget memoryBudget() const { return memoryBudget_; }
 
     // Tests et banc d'essai : traite les événements jusqu'à ce que l'analyse et les
     // vignettes soient terminées. Faux si le délai expire.
@@ -114,6 +117,7 @@ private:
     void applyOutcome(const struct ScanOutcome& out);
     void refreshWatchers();
     void flushNotifications();
+    void reviewMemoryBudget();
     void noteFolders(const QSet<FolderId>& folders, bool structure);
     void noteItems(const QList<ItemId>& ids);
     void reportStorageError(const QString& what);
@@ -127,9 +131,13 @@ private:
     std::unique_ptr<Settings> settings_;
     std::unique_ptr<LibraryDb> repo_;
     std::unique_ptr<ThumbnailPipeline> pipeline_;
+    MemoryBudget memoryBudget_;
     std::unique_ptr<class VideoProbe> video_;
     std::unique_ptr<class Watcher> watcher_;
     QTimer availabilityTimer_;
+    // 008 (research B3) : relit la RAM disponible pendant un scan actif et ajuste le
+    // nombre de fils de vignettes en conséquence.
+    QTimer memoryBudgetTimer_;
 
     // Thread d'indexation
     std::thread indexer_;

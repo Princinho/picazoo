@@ -54,4 +54,4 @@ target_link_libraries(picazoo_core
         xxHash::xxhash
         TinyEXIF::TinyEXIF
         Qt6::Network
-        shell32 ole32 oleaut32 shlwapi uuid)
+        shell32 ole32 oleaut32 shlwapi uuid Psapi)

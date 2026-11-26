@@ -121,7 +121,7 @@ std::optional<qint64> Statement::optInt64(int col) const
 
 // ----------------------------------------------------------------- Database
 
-std::unique_ptr<Database> Database::open(const QString& path, bool readOnly)
+std::unique_ptr<Database> Database::open(const QString& path, bool readOnly, qint64 cacheBytes)
 {
     sqlite3* db = nullptr;
     const int flags = (readOnly ? SQLITE_OPEN_READONLY : (SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE)) |
@@ -139,7 +139,8 @@ std::unique_ptr<Database> Database::open(const QString& path, bool readOnly)
     }
     out->exec("PRAGMA foreign_keys=ON");
     out->exec("PRAGMA temp_store=MEMORY");
-    out->exec("PRAGMA cache_size=-32768"); // 32 Mo
+    const qint64 cacheKiB = cacheBytes > 0 ? cacheBytes / 1024 : 32768; // 32 Mo par défaut
+    out->exec(("PRAGMA cache_size=-" + QString::number(cacheKiB)).toUtf8().constData());
     return out;
 }
 
