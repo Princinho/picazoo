@@ -90,6 +90,16 @@ FocusScope {
             onWheel: event => gridModel.thumbSize = gridModel.thumbSize + (event.angleDelta.y > 0 ? 16 : -16)
         }
 
+        // Défilement à la molette doublé par rapport au comportement par défaut de Flickable.
+        WheelHandler {
+            acceptedModifiers: Qt.NoModifier
+            onWheel: event => {
+                const maxY = Math.max(list.originY, list.originY + list.contentHeight - list.height)
+                const dy = (event.pixelDelta.y !== 0 ? event.pixelDelta.y : event.angleDelta.y) * 2
+                list.contentY = Math.max(list.originY, Math.min(list.contentY - dy, maxY))
+            }
+        }
+
         Keys.onPressed: event => {
             const extend = (event.modifiers & Qt.ShiftModifier) !== 0
             let moved = 0
