@@ -6,6 +6,7 @@
 //   picazoo-bench --live                   apparition d'une photo copiée (SC-005)
 //   picazoo-bench --videos <dossier>       coût d'une vignette vidéo (T061)
 //   picazoo-bench --items 20000 --duplicates   analyse des doublons après l'analyse (SC-003, 002)
+//   picazoo-bench --items 100000 --index-only --naming   repérage des images liées (SC-002, 003)
 //
 // Les photos sont générées dans un dossier temporaire supprimé à la fin. Pour ne pas
 // écrire des dizaines de Go, 50 photos « maîtres » de 24 Mpx sont multipliées par
@@ -21,6 +22,8 @@
 #include "library/Library.h"
 #include "media/Decoder.h"
 #include "media/JpegDecoder.h"
+#include "naming/NamingEngine.h"
+#include "naming/NamingStore.h"
 #include "platform/win/FileIO.h"
 #include "platform/win/CpuInfo.h"
 #include "platform/win/FileIdentity.h"
@@ -88,7 +91,8 @@ QImage makeMaster(int seed, QSize size)
     return img;
 }
 
-QStringList generateLibrary(const QString& root, int items, int perFolder, QSize size)
+// `series` : une moitié des dossiers porte des noms d'événement, l'autre des noms d'appareil.
+QStringList generateLibrary(const QString& root, int items, int perFolder, QSize size, bool series)
 {
     // NTFS limite un fichier à 1 023 liens physiques : au moins un maître par tranche de 1 000.
     const int masters = std::min(items, std::max(50, (items + 999) / 1000));
@@ -110,19 +114,22 @@ QStringList generateLibrary(const QString& root, int items, int perFolder, QSize
         const QString dir = QStringLiteral("%1/lib/Dossier %2").arg(root).arg(i / perFolder, 5, 10, QLatin1Char('0'));
         if (i % perFolder == 0)
             QDir().mkpath(dir);
-        const QString p = QDir::toNativeSeparators(QStringLiteral("%1/IMG_%2.jpg").arg(dir).arg(i, 6, 10, QLatin1Char('0')));
+        const int folder = i / perFolder;
+        const QString prefix = series && folder % 2 == 0 ? QStringLiteral("sortie_%1").arg(folder) : QStringLiteral("IMG");
+        const QString p = QDir::toNativeSeparators(
+            QStringLiteral("%1/%2_%3.jpg").arg(dir, prefix).arg(i, 6, 10, QLatin1Char('0')));
         CreateHardLinkW(reinterpret_cast<const wchar_t*>(p.utf16()),
                         reinterpret_cast<const wchar_t*>(masterPaths[i % masters].utf16()), nullptr);
     }
     return masterPaths;
 }
 
-void benchScan(const QString& work, int items, bool warm, bool indexOnly, QSize size)
+void benchScan(const QString& work, int items, bool warm, bool indexOnly, QSize size, bool series)
 {
     const QString photos = work + "/photos";
     const QString data = work + "/data";
     // Pour --index-only, le contenu des images n'est pas décodé : des maîtres plus petits suffisent.
-    generateLibrary(photos, items, 100, indexOnly ? QSize(1600, 1200) : size);
+    generateLibrary(photos, items, 100, indexOnly ? QSize(1600, 1200) : size, series);
 
     out << QStringLiteral("\nSC-001 — analyse de %1 éléments (%2×%3, %4 threads de calcul)\n")
                .arg(items)
@@ -197,6 +204,52 @@ void benchDuplicates(const QString& work, int items)
                .arg(total, 0, 'f', 1)
                .arg((platform::readCounters().bytes.load() - bytesBefore) / (1024.0 * 1024.0), 0, 'f', 0)
                .arg(engine.store().summary().groups);
+}
+
+// 003 — premier repérage des images liées sur la bibliothèque déjà indexée par benchScan, puis
+// temps pris au thread d'indexation par l'ajout d'une photo.
+void benchNaming(const QString& work)
+{
+    out << QStringLiteral("\nSC-002 (003) — repérage des images liées\n");
+    auto lib = Library::open(QDir::toNativeSeparators(work + "/data"));
+    lib->waitForIdle(24 * 3600 * 1000, false);
+    lib->pauseScan(); // les vignettes restantes ne comptent pas ici
+    NamingStore store(QDir(lib->dataDir()).filePath(QStringLiteral("library.db")));
+    NamingEngine engine(*lib, store);
+    auto wait = [&](const std::function<bool()>& done) {
+        QElapsedTimer t;
+        t.start();
+        while (!done() && t.elapsed() < 600000)
+            QCoreApplication::processEvents(QEventLoop::AllEvents, 10);
+    };
+    QElapsedTimer t;
+    t.start();
+    engine.rescanAll();
+    wait([&] { return engine.fullScanCount() >= 1 && engine.idle() && lib->indexerIdle(); });
+    report("Premier repérage des images liées", t.elapsed() / 1000.0, "s", 60);
+    // Un passage plus long que le délai d'attente de SQLite (5 s) gênerait les autres écritures.
+    report("Premier repérage : temps pris au thread d'indexation", double(engine.takeSlowestPassMs()), "ms", 5000);
+    out << QStringLiteral("  (%1 éléments, %2 groupes)\n").arg(lib->itemCount()).arg(store.summary().groupCount);
+    t.start();
+    const auto rows = store.rows();
+    report("Relecture de la liste par l'écran", double(t.elapsed()), "ms", 500);
+    Q_UNUSED(rows);
+
+    // Un ajout dans une série, puis un nom d'appareil (racine partagée par des milliers d'éléments).
+    auto addition = [&](const QString& folder, const QString& name, const QString& label) {
+        engine.takeSlowestPassMs();
+        const qint64 before = lib->itemCount();
+        QFile::copy(work + "/photos/_masters/m0.jpg",
+                    QDir::toNativeSeparators(work + "/photos/lib/" + folder + "/" + name));
+        wait([&] { return lib->itemCount() > before; });
+        // Les notifications de la bibliothèque arrivent par paquets de 250 ms : on les laisse passer.
+        QElapsedTimer settle;
+        settle.start();
+        wait([&] { return settle.elapsed() > 1500 && engine.idle() && lib->indexerIdle(); });
+        report(label, double(engine.takeSlowestPassMs()), "ms", 100);
+    };
+    addition("Dossier 00000", "sortie_0_999999.jpg", "Ajout à une série : plus long passage");
+    addition("Dossier 00001", "IMG_999999.jpg", "Ajout d'un nom d'appareil : plus long passage");
 }
 
 void benchViewer(const QString& work)
@@ -365,7 +418,8 @@ int main(int argc, char* argv[])
     QCommandLineOption thumbCost("thumb-cost", "Détaille le coût d'une vignette.");
     QCommandLineOption size("size", "Taille des photos générées (LxH).", "LxH", "6000x4000");
     QCommandLineOption duplicates("duplicates", "Mesure aussi l'analyse des doublons (SC-003 de la 002).");
-    p.addOptions({items, warm, viewer, live, videos, keep, indexOnly, thumbCost, size, duplicates});
+    QCommandLineOption naming("naming", "Mesure aussi le repérage des images liées (SC-002 de la 003).");
+    p.addOptions({items, warm, viewer, live, videos, keep, indexOnly, thumbCost, size, duplicates, naming});
     p.process(app);
 
     QTemporaryDir work(QDir::tempPath() + "/picazoo-bench-XXXXXX");
@@ -375,7 +429,10 @@ int main(int argc, char* argv[])
     const int n = p.value(items).toInt();
     if (n > 0) {
         const QStringList wh = p.value(size).split(u'x');
-        benchScan(work.path(), n, p.isSet(warm), p.isSet(indexOnly), QSize(wh.value(0).toInt(), wh.value(1).toInt()));
+        benchScan(work.path(), n, p.isSet(warm), p.isSet(indexOnly), QSize(wh.value(0).toInt(), wh.value(1).toInt()),
+                  p.isSet(naming));
+        if (p.isSet(naming))
+            benchNaming(work.path());
         if (p.isSet(duplicates) && !p.isSet(indexOnly))
             benchDuplicates(work.path(), n);
     }

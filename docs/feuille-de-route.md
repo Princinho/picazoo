@@ -23,6 +23,8 @@ Spec Kit (`specify` → `clarify` → `plan` → `tasks` → `implement`).
 
 État au 2026-11-24 : 001, 002, 005, 006 livrées ; 007 implémentée (branche `claude/007-clic-droit-zoom-plein-ecran`), à valider à la main.
 
+2026-11-26 : 003 implémentée (branche `claude/003-images-liees`), à valider à la main (quickstart de la 003).
+
 ## Pistes pour après (non engagées)
 
 - Étoiles, mots-clés et albums virtuels (sans toucher aux fichiers).

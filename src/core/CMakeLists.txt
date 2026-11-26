@@ -11,7 +11,8 @@ qt_add_resources(picazoo_core "picazoo_core_sql"
         "${CMAKE_CURRENT_SOURCE_DIR}/index/migrations/001_initial.sql"
         "${CMAKE_CURRENT_SOURCE_DIR}/index/migrations/002_doublons.sql"
         "${CMAKE_CURRENT_SOURCE_DIR}/index/migrations/003_doublons_lot.sql"
-        "${CMAKE_CURRENT_SOURCE_DIR}/index/migrations/004_origine_operations.sql")
+        "${CMAKE_CURRENT_SOURCE_DIR}/index/migrations/004_origine_operations.sql"
+        "${CMAKE_CURRENT_SOURCE_DIR}/index/migrations/005_images_liees.sql")
 
 target_include_directories(picazoo_core PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
 

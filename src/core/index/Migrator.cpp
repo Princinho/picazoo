@@ -27,6 +27,7 @@ QString migrationName(int version)
     case 2: return QStringLiteral(":/sql/002_doublons.sql");
     case 3: return QStringLiteral(":/sql/003_doublons_lot.sql");
     case 4: return QStringLiteral(":/sql/004_origine_operations.sql");
+    case 5: return QStringLiteral(":/sql/005_images_liees.sql");
     default: return {};
     }
 }

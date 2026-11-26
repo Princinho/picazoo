@@ -156,6 +156,21 @@ minutes.
   jour, lectures à débit limité et à faible priorité, pause sur batterie ou dans
   la visionneuse, reprise après fermeture ; désactivable dans Outils.
 
+## Fonctionnalité 003 — images liées
+
+- Les photos et vidéos dont les noms partagent une racine suivie d'un numéro
+  (`vacances_bali_001`, `Anniversaire Julie (2)`, « - copie »…) sont proposées
+  en groupes, tous dossiers confondus, avec un niveau de confiance en mots :
+  « Série régulière », « Même racine ». Les noms donnés par l'appareil (`IMG_`,
+  `DSC_`, captures d'écran…) sont écartés, sauf demande dans Outils.
+- Écran « Images liées » (liste des dossiers, sous « Doublons ») : renommer,
+  confirmer, retirer ou ajouter des éléments, fusionner, scinder, « Ce n'est pas
+  un groupe » ; les décisions sont conservées et « Décisions » permet d'annuler
+  une fusion ou une exclusion. Un groupe corrigé garde ses éléments même
+  renommés ou déplacés sur le disque.
+- Seuls les noms déjà indexés sont lus, **aucun fichier n'est modifié** ; le
+  repérage suit la bibliothèque tout seul.
+
 ## Fonctionnalité 006 — gestion des doublons en lot
 
 - Sélection de groupes (case, Maj + clic, Ctrl + A sur les groupes affichés) et
@@ -217,6 +232,10 @@ Banc d'essai (photos générées dans un dossier temporaire, jamais vos dossiers
 
 ```powershell
 .\build\windows-release\picazoo-bench.exe --items 20000 --duplicates
+```
+
+```powershell
+.\build\windows-release\picazoo-bench.exe --items 100000 --index-only --naming
 ```
 
 Les tests qui ont besoin de vrais fichiers RAW, HEIC ou vidéo les cherchent dans

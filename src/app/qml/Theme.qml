@@ -67,6 +67,9 @@ QtObject {
     readonly property string iconGrid: ""
     readonly property string iconAdd: ""
 
+    // Images liées (003)
+    readonly property string iconRelated: "\uE71B" // Link
+
     // Doublons (002)
     readonly property string iconDuplicates: ""
     readonly property string iconStar: ""
