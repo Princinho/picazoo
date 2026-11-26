@@ -3,11 +3,13 @@
 #include "index/Database.h"
 #include "index/Migrator.h"
 #include "index/ThumbStore.h"
+#include "jobs/MemoryBudget.h"
 #include "jobs/ThumbnailPipeline.h"
 #include "library/Settings.h"
 #include "media/JpegDecoder.h"
 #include "platform/win/FileIdentity.h"
 #include "platform/win/KnownFolders.h"
+#include "platform/win/MemoryInfo.h"
 #include "platform/win/Paths.h"
 #include "platform/win/CpuInfo.h"
 #include "platform/win/DirectoryWalker.h"
@@ -40,11 +42,19 @@ std::unique_ptr<Library> Library::open(const QString& dataDir, QObject* parent)
     QDir().mkpath(dataDir);
     std::unique_ptr<Library> lib(new Library(dataDir, parent));
     const QString dbPath = QDir(dataDir).filePath(QStringLiteral("library.db"));
-    lib->writeDb_ = Database::open(dbPath);
+
+    // Budget mémoire du scan (008, research B2) : dimensionne threads de vignettes et
+    // caches à partir de la RAM réellement disponible, pas seulement du CPU.
+    const platform::MemorySnapshot mem = platform::memorySnapshot();
+    const int cpuThreads = platform::recommendedWorkerThreads();
+    lib->memoryBudget_ = computeMemoryBudget({mem.totalPhysicalBytes, mem.availablePhysicalBytes, cpuThreads});
+    const qint64 cacheBytes = lib->memoryBudget_.sqliteCacheBytesPerConnection;
+
+    lib->writeDb_ = Database::open(dbPath, false, cacheBytes);
     migrateLibrary(*lib->writeDb_);
-    lib->uiDb_ = Database::open(dbPath, true);
-    lib->workerDb_ = Database::open(dbPath, true);
-    lib->thumbs_ = std::make_unique<ThumbStore>(QDir(dataDir).filePath(QStringLiteral("thumbs.db")));
+    lib->uiDb_ = Database::open(dbPath, true, cacheBytes);
+    lib->workerDb_ = Database::open(dbPath, true, cacheBytes);
+    lib->thumbs_ = std::make_unique<ThumbStore>(QDir(dataDir).filePath(QStringLiteral("thumbs.db")), cacheBytes);
     lib->settings_ = std::make_unique<Settings>(*lib->writeDb_);
     lib->repo_ = std::make_unique<LibraryDb>(*lib->writeDb_);
 
@@ -56,13 +66,18 @@ std::unique_ptr<Library> Library::open(const QString& dataDir, QObject* parent)
             if (!folders.isEmpty())
                 self->noteFolders(folders, false);
         });
-    const int threads = platform::recommendedWorkerThreads();
-    lib->pipeline_->start(threads);
+    lib->pipeline_->start(lib->memoryBudget_.thumbnailThreads);
     lib->indexer_ = std::thread([self] { self->indexerLoop(); });
 
     lib->notifyTimer_.setInterval(250);
     connect(&lib->notifyTimer_, &QTimer::timeout, self, &Library::flushNotifications);
     lib->notifyTimer_.start();
+
+    // 008 (research B3) : cadence lente, distincte de notifyTimer_, pour ne relire la
+    // RAM disponible et recalculer le budget que de temps en temps pendant un scan.
+    lib->memoryBudgetTimer_.setInterval(10000);
+    connect(&lib->memoryBudgetTimer_, &QTimer::timeout, self, &Library::reviewMemoryBudget);
+    lib->memoryBudgetTimer_.start();
 
     // Reprise : éléments dont la vignette ou les métadonnées n'ont pas été calculées.
     lib->pipeline_->enqueue(lib->repo_->pendingWork(lib->pipeline_->handlesVideos()));
@@ -96,6 +111,7 @@ std::unique_ptr<Library> Library::open(const QString& dataDir, QObject* parent)
 Library::~Library()
 {
     notifyTimer_.stop();
+    memoryBudgetTimer_.stop();
     availabilityTimer_.stop();
     cancelScan_ = true;
     {
@@ -623,6 +639,22 @@ void Library::flushNotifications()
         emit progressChanged();
     if (finished)
         emit scanFinished();
+}
+
+void Library::reviewMemoryBudget()
+{
+    // 008 (research B3) : seulement pendant un scan avec vignettes en cours ; inutile
+    // (et sans effet visible) une fois la bibliothèque au repos.
+    if (progress().phase != ScanProgress::Phase::Thumbnails && progress().phase != ScanProgress::Phase::Indexing)
+        return;
+    const platform::MemorySnapshot mem = platform::memorySnapshot();
+    const int cpuThreads = platform::recommendedWorkerThreads();
+    const MemoryBudget updated =
+        computeMemoryBudget({mem.totalPhysicalBytes, mem.availablePhysicalBytes, cpuThreads});
+    if (updated.thumbnailThreads != memoryBudget_.thumbnailThreads) {
+        memoryBudget_.thumbnailThreads = updated.thumbnailThreads;
+        pipeline_->applyMemoryBudget(memoryBudget_);
+    }
 }
 
 bool Library::waitForIdle(int timeoutMs, bool includeThumbnails)

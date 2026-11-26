@@ -4,9 +4,9 @@
 
 namespace picazoo {
 
-ThumbStore::ThumbStore(const QString& path)
+ThumbStore::ThumbStore(const QString& path, qint64 cacheBytesPerConnection)
 {
-    write_ = Database::open(path);
+    write_ = Database::open(path, false, cacheBytesPerConnection);
     write_->exec("CREATE TABLE IF NOT EXISTS thumb ("
                  " item_id INTEGER NOT NULL,"
                  " kind    TEXT    NOT NULL CHECK (kind IN ('provisional', 'final')),"
@@ -15,7 +15,7 @@ ThumbStore::ThumbStore(const QString& path)
                  " height  INTEGER NOT NULL,"
                  " jpeg    BLOB    NOT NULL,"
                  " PRIMARY KEY (item_id, kind)) WITHOUT ROWID");
-    read_ = Database::open(path, true);
+    read_ = Database::open(path, true, cacheBytesPerConnection);
 }
 
 ThumbStore::~ThumbStore() = default;

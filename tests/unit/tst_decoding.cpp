@@ -1,5 +1,6 @@
 // T025 — formats, facteurs de réduction, orientation, EXIF.
 
+#include "jobs/ThumbnailPipeline.h" // kThumbSize
 #include "media/Decoder.h"
 #include "media/Formats.h"
 #include "media/JpegDecoder.h"
@@ -7,6 +8,7 @@
 #include "support/FixtureFactory.h"
 #include "support/TempTree.h"
 
+#include <QDir>
 #include <QtTest>
 
 using namespace picazoo;
@@ -149,6 +151,40 @@ private slots:
         auto back = JpegDecoder::decode(enc);
         QVERIFY(back);
         QCOMPARE(back->size(), QSize(320, 240));
+    }
+
+    // 008 (US1) — la miniature intégrée d'un HEIC devient la vignette finale quand elle
+    // suffit, sans décoder la pleine résolution (research H1).
+    void heicThumbnailBecomesFinal()
+    {
+        const QDir fixtures(QStringLiteral(PICAZOO_FIXTURES_DIR));
+        if (!fixtures.exists(QStringLiteral("sample.heic")))
+            QSKIP("sample.heic absent de tests/fixtures (voir README).");
+        const QString path = fixtures.filePath(QStringLiteral("sample.heic"));
+
+        auto embedded = Decoder::embeddedThumbnail(path, Format::Heic);
+        QVERIFY(embedded);
+        QVERIFY(!embedded->isNull());
+        const bool goodEnough = std::max(embedded->width(), embedded->height()) >= kThumbSize - 20;
+        QVERIFY2(goodEnough, "sample.heic devrait avoir une miniature intégrée d'au moins 300 px "
+                             "(typique d'une photo iPhone) pour que ce test soit représentatif");
+
+        // La miniature se décode nettement plus vite que la pleine résolution : un
+        // indice indirect que `embeddedThumbnail` ne matérialise jamais l'image entière.
+        QElapsedTimer t;
+        t.start();
+        auto thumb = Decoder::embeddedThumbnail(path, Format::Heic);
+        const qint64 thumbMs = t.elapsed();
+        QVERIFY(thumb);
+
+        t.restart();
+        auto full = Decoder::decode({path, Format::Heic, {}, 1});
+        const qint64 fullMs = t.elapsed();
+        QVERIFY(full);
+        QVERIFY2(thumbMs <= fullMs,
+                 qPrintable(QStringLiteral("miniature (%1 ms) pas plus rapide que la pleine résolution (%2 ms)")
+                                .arg(thumbMs)
+                                .arg(fullMs)));
     }
 
     void truncatedAndPng()

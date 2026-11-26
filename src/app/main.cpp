@@ -175,7 +175,8 @@ int main(int argc, char* argv[])
     QObject::connect(&engine, &QQmlApplicationEngine::objectCreationFailed, &app,
                      [] { QCoreApplication::exit(-1); }, Qt::QueuedConnection);
     if (library) {
-        engine.addImageProvider(QStringLiteral("thumb"), new ThumbnailImageProvider(*library));
+        engine.addImageProvider(QStringLiteral("thumb"),
+                                new ThumbnailImageProvider(*library, library->memoryBudget().thumbnailLruCacheBytes));
         auto* viewerImages = new ViewerImageProvider(*library);
         engine.addImageProvider(QStringLiteral("viewer"), viewerImages);
         viewer = std::make_unique<ViewerController>(*library, *grid, *viewerImages);

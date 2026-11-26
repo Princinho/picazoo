@@ -51,6 +51,34 @@ vidéos), utiliser les photos de test déjà prévues pour les doublons :
 .\build\windows-release\picazoo-testdata.exe --duplicates C:\PicazooTest\Doublons
 ```
 
+### Mesures effectuées (T018, 2026-11-26)
+
+Deux exécutions de `picazoo-bench.exe --items 100000` sur une machine de
+développement partagée (pas la machine de référence à 8 Go dédiée à la
+validation manuelle) :
+
+| Exécution | RAM disponible (approx.) | Pic de mémoire | Découverte | Analyse complète (ramenée à 20 000) | Débit |
+|---|---|---|---|---|---|
+| 1 | ~4,3 Go | 142,68 Mo (seuil 1500) OK | 63,79 s (seuil 60) ÉCHEC | 18,82 min (seuil 15) ÉCHEC | 17,7 vignettes/s |
+| 2 | ~1,6 Go | 159,89 Mo (seuil 1500) OK | 73,53 s (seuil 60) ÉCHEC | 25,61 min (seuil 15) ÉCHEC | 13,0 vignettes/s |
+
+**Pic de mémoire (SC-001/SC-002)** : validé dans les deux cas, très large
+marge sous le seuil de 1,5 Go — l'objectif principal de cette fonctionnalité
+est confirmé.
+
+**Seuils de temps (SC-003/SC-006)** : non concluants sur cette machine. Les
+deux exécutions se sont déroulées avec d'autres applications ouvertes
+(navigateur, éditeur, etc.), avec une RAM disponible mesurée à ~1,6-4,3 Go
+seulement sur une machine à ~15 Go au total. `computeMemoryBudget` (B2)
+réduit délibérément `thumbnailThreads` quand la RAM disponible est faible,
+ce qui ralentit le débit de vignettes par rapport aux « 9 threads de calcul »
+affichés en en-tête (figure CPU, pas le budget réellement appliqué) — la
+seconde exécution, avec moins de RAM disponible, est d'ailleurs plus lente
+que la première. Une comparaison avant/après fiable pour SC-003/SC-006
+nécessite une machine dédiée et calme, comme prévu par la validation
+manuelle (étapes 1-9 ci-dessous), pas cette machine de développement
+partagée.
+
 ou générer un dossier de test avec de vraies photos HEIC haute résolution
 (iPhone) si disponibles, à défaut de quoi `picazoo-bench --items 100000`
 (JPEG synthétique uniquement) donne déjà une mesure utile du budget de

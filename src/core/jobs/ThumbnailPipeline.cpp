@@ -10,6 +10,7 @@
 
 #include <QDebug>
 
+#include <algorithm>
 #include <chrono>
 
 namespace picazoo {
@@ -45,9 +46,21 @@ void ThumbnailPipeline::start(int threads)
     if (!workers_.empty())
         return;
     stopping_ = false;
-    for (int i = 0; i < std::max(1, threads); ++i)
-        workers_.emplace_back([this] { workerLoop(); });
+    const int n = std::max(1, threads);
+    activeThreads_ = n;
+    for (int i = 0; i < n; ++i)
+        workers_.emplace_back([this, i] { workerLoop(i); });
     writerThread_ = std::thread([this] { writerLoop(); });
+}
+
+void ThumbnailPipeline::applyMemoryBudget(const MemoryBudget& budget)
+{
+    if (workers_.empty())
+        return;
+    // Une hausse ne démarre jamais de nouveau fil ici (008, research B3) : au plus le
+    // nombre de fils déjà créés par `start()`. Jamais en dessous de 1.
+    const int clamped = std::clamp(budget.thumbnailThreads, 1, int(workers_.size()));
+    activeThreads_ = clamped;
 }
 
 void ThumbnailPipeline::stop()
@@ -143,9 +156,22 @@ bool ThumbnailPipeline::idle() const
            inFlight_.load() == 0;
 }
 
-void ThumbnailPipeline::workerLoop()
+void ThumbnailPipeline::workerLoop(int index)
 {
-    while (auto job = queue_.pop()) {
+    for (;;) {
+        // Budget mémoire (008, research B3) : un fil d'index élevé se met en veille tant
+        // que le budget courant ne l'autorise pas, sans jamais prendre de nouvel élément
+        // ni sortir définitivement (un budget relevé dans le même scan le réactive).
+        // `queue_.pop()` gère déjà l'arrêt (stop()) et la pause (pause()/resume()).
+        if (index >= activeThreads_.load()) {
+            if (stopping_)
+                return;
+            std::this_thread::sleep_for(std::chrono::milliseconds(200));
+            continue;
+        }
+        auto job = queue_.pop();
+        if (!job)
+            return; // file arrêtée
         ++inFlight_;
         try {
             process(*job);
@@ -215,10 +241,15 @@ void ThumbnailPipeline::process(const QueuedItem& job)
             }
         }
     } else {
-        // 1) Vignette provisoire à partir de la vignette intégrée, pour remplir la grille vite.
-        if (item->thumbState == ThumbState::Pending && job.priority == Priority::Background) {
+        // 1) Vignette provisoire à partir de la vignette intégrée, pour remplir la grille vite
+        //    (JPEG, lot d'arrière-plan seulement : la cible 320 px se décode directement et
+        //    aussi vite). HEIC emprunte ce chemin quelle que soit la priorité : sa miniature
+        //    intégrée évite de décoder la pleine résolution, bien plus coûteuse en mémoire pour
+        //    ce format (recherche H1, 008), y compris pour un élément visible à l'écran.
+        if (item->thumbState == ThumbState::Pending &&
+            (job.priority == Priority::Background || item->format == Format::Heic)) {
             std::optional<QImage> embedded;
-            if (item->format == Format::Jpeg && !md.embeddedThumb.isEmpty()) {
+            if (item->format == Format::Jpeg && job.priority == Priority::Background && !md.embeddedThumb.isEmpty()) {
                 if (auto img = JpegDecoder::decode(md.embeddedThumb))
                     embedded = applyOrientation(*img, orientation);
             } else if (item->format == Format::Heic) {

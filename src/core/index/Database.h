@@ -61,7 +61,9 @@ private:
 class Database {
 public:
     // Ouvre ou crée la base ; applique WAL, synchronous=NORMAL, foreign_keys, busy_timeout.
-    static std::unique_ptr<Database> open(const QString& path, bool readOnly = false);
+    // cacheBytes <= 0 : cache_size par défaut (32 Mo, comportement d'avant la 008) ;
+    // sinon, le budget mémoire du scan (jobs/MemoryBudget) fixe cette valeur.
+    static std::unique_ptr<Database> open(const QString& path, bool readOnly = false, qint64 cacheBytes = 0);
     ~Database();
 
     void exec(const char* sql);

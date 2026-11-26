@@ -105,15 +105,40 @@ MemoryBudget computeMemoryBudget(const MemoryBudgetInputs&);
 
 Règle : sur une machine « de référence » (8 Go de RAM totale), le budget
 cible un pic total de l'ordre de 1,2 à 1,5 Go pour le scan (SC-001, SC-002) :
-cache SQLite réduit (par exemple 8 Mo/connexion au lieu de 32, soit 40 Mo au
-lieu de 160 pour les cinq connexions), cache LRU de vignettes réduit en
-proportion de la RAM disponible (par exemple un quart de la RAM disponible,
-borné entre 32 et 256 Mo), et surtout un nombre de threads de vignettes
-plafonné par une estimation du coût mémoire pic d'un décodage (voir H1 : avec
-la miniature HEIC comme résultat final, le pire cas redescend nettement).
-Sur une machine à beaucoup plus de RAM, le budget doit converger vers le
-comportement actuel (ne pas brider inutilement, SC-006) : les fractions sont
-calculées à partir de `availablePhysicalBytes`, pas de constantes absolues.
+cache SQLite réduit (plafond bas 4 Mo/connexion, comportement actuel 32
+Mo/connexion, soit jusqu'à 20 Mo au lieu de 160 pour les cinq connexions
+quand la RAM disponible est très faible), cache LRU de vignettes réduit en
+proportion de la RAM disponible (plafond bas 32 Mo, comportement actuel 256
+Mo), et surtout un nombre de threads de vignettes plafonné par une
+estimation du coût mémoire pic d'un décodage (voir H1 : avec la miniature
+HEIC comme résultat final, le pire cas redescend nettement). Sur une machine
+à beaucoup plus de RAM, le budget doit converger vers le comportement actuel
+(ne pas brider inutilement, SC-006) : les fractions sont calculées à partir
+de `availablePhysicalBytes`, pas de constantes absolues.
+
+**Valeurs retenues à l'implémentation** (`src/core/jobs/MemoryBudget.cpp`,
+T007) :
+- `kAvailableGiBPerThread = 0,75` : au-delà de cette RAM disponible par
+  thread de vignette visé (hypothèse de coût pic par décodage de l'ordre de
+  150-200 Mo, HEIC pleine résolution dans le pire cas sans miniature
+  intégrée, plus marge pour Qt et le reste du processus), un thread
+  supplémentaire est autorisé ; `thumbnailThreads = round(availableGiB /
+  0,75)`, borné entre 1 et `recommendedCpuThreads`.
+- `kCacheReferenceAvailableGiB = 8,0` : RAM disponible au-delà de laquelle
+  les deux caches (SQLite, LRU de vignettes) retrouvent leur plafond actuel
+  (pas de bridage sur une machine généreuse, SC-006) ; en-dessous, une
+  fraction linéaire `availableGiB / 8,0` (bornée 0-1) interpole entre le
+  plafond bas et le plafond actuel pour chaque cache.
+- Cache SQLite : plafond bas 4 Mo/connexion, plafond actuel 32 Mo/connexion
+  (`kSqliteCacheFloorBytes`, `kSqliteCacheDefaultBytes`).
+- Cache LRU de vignettes : plafond bas 32 Mo, plafond actuel 256 Mo
+  (`kThumbnailLruFloorBytes`, `kThumbnailLruDefaultBytes`).
+
+Ces valeurs sont confirmées par `tst_memorybudget` (26/26 tests verts,
+y compris les 5 garanties du contrat) et par le pic de mémoire mesuré par
+`picazoo-bench` (T018) : 142,68 Mo et 159,89 Mo sur deux exécutions, très
+sous le seuil de 1,5 Go visé — aucun ajustement des constantes ci-dessus n'a
+été nécessaire après la première implémentation.
 
 **Rationale**: une fonction pure se teste exhaustivement sans machine réelle
 (`tst_memorybudget` injecte des valeurs de RAM totale/disponible et vérifie

@@ -38,10 +38,10 @@ private:
 
 } // namespace
 
-ThumbnailImageProvider::ThumbnailImageProvider(picazoo::Library& library) : lib_(library)
+ThumbnailImageProvider::ThumbnailImageProvider(picazoo::Library& library, qint64 maxCostBytes) : lib_(library)
 {
     pool_.setMaxThreadCount(4);
-    cache_.setMaxCost(256 * 1024 * 1024);
+    cache_.setMaxCost(maxCostBytes > 0 ? maxCostBytes : 256 * 1024 * 1024);
 }
 
 QImage ThumbnailImageProvider::load(const QString& id)

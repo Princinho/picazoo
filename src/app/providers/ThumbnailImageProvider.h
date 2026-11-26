@@ -16,7 +16,8 @@ class Library;
 
 class ThumbnailImageProvider : public QQuickAsyncImageProvider {
 public:
-    explicit ThumbnailImageProvider(picazoo::Library& library);
+    // maxCostBytes <= 0 : plafond par défaut (256 Mo, comportement d'avant la 008).
+    explicit ThumbnailImageProvider(picazoo::Library& library, qint64 maxCostBytes = 0);
     QQuickImageResponse* requestImageResponse(const QString& id, const QSize& requestedSize) override;
 
     QImage load(const QString& id);
