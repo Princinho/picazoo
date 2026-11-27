@@ -131,8 +131,11 @@ private slots:
         const OperationId back = rig.trash->undo(op);
         QVERIFY(back);
         QVERIFY(rig.trash->waitForIdle(60000));
-        QCOMPARE(rig.trash->operation(op)->state, OperationState::Undone);
-        for (const auto& e : rig.trash->operation(op)->entries)
+        // operation() rend un temporaire : le nommer, sinon la boucle lit une liste déjà détruite.
+        const auto undone = rig.trash->operation(op);
+        QVERIFY(undone);
+        QCOMPARE(undone->state, OperationState::Undone);
+        for (const auto& e : undone->entries)
             QCOMPARE(e.result, QStringLiteral("restored"));
         PICAZOO_VERIFY_UNTOUCHED(before, rig.photos.path()); // SC-008 : retour à l'identique
         QVERIFY(rig.idle());
