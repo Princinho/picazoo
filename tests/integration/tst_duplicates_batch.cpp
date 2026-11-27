@@ -273,7 +273,9 @@ private slots:
             QVERIFY2(kept.first().startsWith(images, Qt::CaseInsensitive), qPrintable(kept.first()));
         }
         // Le doublon interne n'était pas dans le lot : aucun choix.
-        for (const auto& c : rig.store().group(internal)->copies)
+        // group() rend un temporaire : le nommer, sinon la boucle lit une liste déjà détruite.
+        const auto untouched = rig.store().group(internal);
+        for (const auto& c : untouched->copies)
             QVERIFY(!c.userChoice);
 
         // Garder l'autre côté, puis annuler : retour au premier lot.
@@ -297,12 +299,13 @@ private slots:
         // Un choix fait à la main avant la règle : la copie de la sauvegarde gardée.
         const GroupId manual = pair.first();
         ItemId backupCopy = 0;
-        for (const auto& c : rig.store().group(manual)->copies)
+        const auto before = rig.store().group(manual);
+        for (const auto& c : before->copies)
             if (rig.fx.lib->item(c.item)->path().contains(QStringLiteral("Sauvegarde")))
                 backupCopy = c.item;
         QVERIFY(backupCopy);
         rig.store().setKeep(manual, backupCopy, true);
-        for (const auto& c : rig.store().group(manual)->copies)
+        for (const auto& c : before->copies)
             if (c.item != backupCopy)
                 rig.store().setKeep(manual, c.item, false);
 
